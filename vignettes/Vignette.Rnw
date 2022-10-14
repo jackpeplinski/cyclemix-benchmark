@@ -2,6 +2,7 @@
 \usepackage{ listings }
 %\VignetteIndexEntry{Using CycleMix}
 \begin{document}
+\SweaveOpts{concordance=TRUE}
 
 \title{Cell-cycle assignment using Mixture Models}
 \author{Tallulah Andrews}
