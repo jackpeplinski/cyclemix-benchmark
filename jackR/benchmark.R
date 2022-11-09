@@ -3,7 +3,10 @@ require("scater")
 require("CycleMix")
 require("stringr")
 
+## QUESTIONS
+# For e-mtab-3749, what is the format?
 # For GSE, each file is the equivalent of a G1_cell#_count in E-MTAB?
+# For marioni, is "ERCC-00004" ok to have in rows?
 
 # don't need to log normalize, each file is a cell.
 # Round fpkm for counts, and put fpkm into the logcounts
@@ -57,8 +60,7 @@ gse <- function() {
 
 emtab_2805 <- function(file_name) {
     counts <- read.table(
-        str_interp("./jackData/E-MTAB-2805/E-MTAB-2805
-        .processed.1/${file_name}.txt"),
+        str_interp("./jackData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"),
         header = TRUE
     )
 
@@ -89,7 +91,7 @@ emtab_2805 <- function(file_name) {
     )
     sce <- SingleCellExperiment(
         assays = list(counts = counts),
-        colData = col_data, # look at split function
+        colData = col_data,
         rowData = row_data
     )
     counts <- assay(sce, "counts")
@@ -105,11 +107,32 @@ emtab_2805_res <- cbind(
     emtab_2805("S_singlecells_counts")
 )
 
-output2 <- classifyCells(e_mtab_res, MGeneSets$Cyclone)
-summary(factor(output2$phase))
-table(factor(output2$phase), e_mtab_res$cell_type1)
-plotMixture(output2$fit[["G2M"]], BIC = TRUE)
+# output2 <- classifyCells(e_mtab_res, MGeneSets$Cyclone)
+# summary(factor(output2$phase))
+# table(factor(output2$phase), e_mtab_res$cell_type1)
+# plotMixture(output2$fit[["G2M"]], BIC = TRUE)
 
-# merge sces
+marioni <- function() {
+    counts <- read.table(
+        "./jackData/Marioni_lab_1_Jul_2015_gene_counts_table.txt"
+    )
 
-# Access sce attributes with rowData(sce), colData(sce)
+    rownames_length <- length(rownames(counts)) - 5
+    row_data <- DataFrame(
+        row.names = rownames(counts)[1:rownames_length]
+        # feature_symbol = what to put here? should be a gene e.g., GNAI3
+    )
+
+    col_data <- DataFrame(
+        row.names = colnames(counts),
+        Species = factor("Mus musculus"), # check this
+        cell_type1 = factor(), # what to put here? G1, S, G2M ...
+        Source = factor("ESC")
+    )
+
+    sce <- SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = col_data,
+        rowData = row_data
+    )
+}
