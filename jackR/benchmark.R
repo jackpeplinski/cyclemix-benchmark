@@ -9,6 +9,34 @@ require("stringr")
 # Don't need to log normalize, each file is a cell.
 # Round fpkm for counts, and put fpkm into the logcounts
 gse <- function() {
+    # counts should be something like
+    # with headers: row.name (ensembleID),   gsmcellname
+    #               e.g.,ENSMUSG00000000049  [fpkm]
+
+    # load counts info; doesn't matter which file, could be any
+    counts <- read.table(
+        str_interp("./jackData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
+        header = TRUE
+    )
+
+    # adds row.name with ensembleID
+    rownames(counts) <- counts$id
+
+    # adds gene.symbol with gene symbol
+    row_data <- DataFrame(
+        row.names = counts$id,
+        feature_symbol = factor(counts$gene.symbol)
+    )
+
+    # remove unneeded info
+    counts <- subset(counts,
+        select = -c(
+            id,
+            gene.symbol,
+            fpkm
+        )
+    )
+
     # copy/pasted this from gseParse
     col_data_xml <- data.frame(
         cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"), # nolint
@@ -20,53 +48,57 @@ gse <- function() {
             "./jackData/GSE42268/GSE42268_RAW",
         pattern = ".*.txt"
     )
-
+    print(col_data_xml)
     for (file in files) {
-        counts <- read.table(
-            str_interp("./jackData/GSE42268/GSE42268_RAW/${file}"),
-            header = TRUE
-        )
-
-        rownames(counts) <- counts$id
-
-        row_data <- DataFrame(
-            row.names = counts$id,
-            feature_symbol = factor(counts$gene.symbol)
-        )
-
-        counts <- subset(counts,
-            select = -c(
-                id,
-                gene.symbol
+        gsm <- substr(file, 1, 10)
+        if (is.element(gsm, col_data_xml$gsm)) {
+            print(gsm)
+            counts_data <- read.table(
+                str_interp("./jackData/GSE42268/GSE42268_RAW/${file}"),
+                header = TRUE
             )
-        )
-        # print(col_data_xml["gsm"])
-        # print(col_data_xml$gsm)
-        print(colnames(col_data_xml))
-        # print(col_data_xml["cell_type1"])
-        col_data <- DataFrame(
-            row.names = col_data_xml$gsm,
-            Species = factor("Mus musculus"),
-            cell_type1 = col_data_xml$cell_type1, # why the "1" at the end?
-            Source = factor("ESC")
-        )
-        # print(col_data)
-        # print(col_data["GSM1036531", ]) # verify that the correct phase is matched
 
-        sce <- SingleCellExperiment(
-            assays = list(counts = counts),
-            colData = col_data, # look at split function
-            rowData = row_data
-        )
-        counts <- assay(sce, "counts")
-        libsizes <- colSums(counts)
-        size.factors <- libsizes / mean(libsizes)
-        logcounts(sce) <- log2(t(t(counts) / size.factors) + 1)
-        return(sce)
+            rownames(counts_data) <- counts_data$id
+
+            counts_data <- subset(counts_data,
+                select = -c(
+                    id,
+                    gene.symbol
+                )
+            )
+
+            colnames(counts_data)[1] <- gsm
+
+            col_data <- DataFrame(
+                row.names = col_data_xml$gsm,
+                Species = factor("Mus musculus"),
+                cell_type1 = col_data_xml$cell_type1, # why the "1" at the end?
+                Source = factor("ESC") # this may be different
+            )
+            # print(col_data)
+            # print(col_data["GSM1036531", ]) # verify that the correct phase is matched
+
+            # print(head(counts_data))
+            counts <- cbind(counts, counts_data)
+        }
     }
+
+    print(head(counts))
+    print(col_data)
+    sce <- SingleCellExperiment(
+        assays = list(counts = counts),
+        colData = col_data, # look at split function
+        rowData = row_data
+    )
+    counts <- assay(sce, "counts")
+    return(sce)
 }
 
-gse()
+gse <- gse()
+output2 <- classifyCells(gse, MGeneSets$Cyclone)
+summary(factor(output2$phase))
+# table(factor(output2$phase), gse$cell_type1)
+# plotMixture(output2$fit[["G2M"]], BIC = TRUE)
 
 emtab_2805 <- function(file_name) {
     counts <- read.table(
@@ -90,7 +122,7 @@ emtab_2805 <- function(file_name) {
         ),
         Source = factor("ESC")
     )
-
+    # print(head(counts))
     counts <- subset(counts,
         select = -c(
             EnsemblGeneID,
@@ -99,6 +131,7 @@ emtab_2805 <- function(file_name) {
             GeneLength
         )
     )
+    print(head(counts))
     sce <- SingleCellExperiment(
         assays = list(counts = counts),
         colData = col_data,
