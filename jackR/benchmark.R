@@ -36,6 +36,7 @@ gse <- function() {
             fpkm
         )
     )
+    logcounts <- counts
 
     # copy/pasted this from gseParse
     col_data_xml <- data.frame(
@@ -48,26 +49,41 @@ gse <- function() {
             "./jackData/GSE42268/GSE42268_RAW",
         pattern = ".*.txt"
     )
-    print(col_data_xml)
+
     for (file in files) {
         gsm <- substr(file, 1, 10)
         if (is.element(gsm, col_data_xml$gsm)) {
-            print(gsm)
             counts_data <- read.table(
                 str_interp("./jackData/GSE42268/GSE42268_RAW/${file}"),
                 header = TRUE
             )
 
-            rownames(counts_data) <- counts_data$id
+            format_counts <- function(count_type) {
+                if (count_type != "logcounts") {
+                    data <- data.frame(
+                        lapply(
+                            counts_data,
+                            function(x) if (is.numeric(x)) round(x) else x
+                        )
+                    )
+                } else {
+                    data <- counts_data
+                }
 
-            counts_data <- subset(counts_data,
-                select = -c(
-                    id,
-                    gene.symbol
+                rownames(data) <- data$id
+
+                data <- subset(data,
+                    select = -c(
+                        id,
+                        gene.symbol
+                    )
                 )
-            )
 
-            colnames(counts_data)[1] <- gsm
+                colnames(data)[1] <- gsm
+                return(data)
+            }
+            logcounts_data <- format_counts("logcounts")
+            counts_data <- format_counts("counts")
 
             col_data <- DataFrame(
                 row.names = col_data_xml$gsm,
@@ -79,26 +95,30 @@ gse <- function() {
             # print(col_data["GSM1036531", ]) # verify that the correct phase is matched
 
             # print(head(counts_data))
+            logcounts <- cbind(logcounts, logcounts_data)
             counts <- cbind(counts, counts_data)
         }
     }
 
     print(head(counts))
-    print(col_data)
+    # print(col_data)
     sce <- SingleCellExperiment(
         assays = list(counts = counts),
         colData = col_data, # look at split function
         rowData = row_data
     )
-    counts <- assay(sce, "counts")
+    counts <- assay(sce, "counts") # double check this and the logcounts is what she wanted.
+    # print("ok")
+    print(head(logcounts))
+    logcounts(sce) <- logcounts
     return(sce)
 }
 
-gse <- gse()
-output2 <- classifyCells(gse, MGeneSets$Cyclone)
+gse_output <- gse()
+output2 <- classifyCells(gse_output, MGeneSets$Cyclone)
 summary(factor(output2$phase))
-# table(factor(output2$phase), gse$cell_type1)
-# plotMixture(output2$fit[["G2M"]], BIC = TRUE)
+table(factor(output2$phase), gse_output$cell_type1)
+plotMixture(output2$fit[["G2M"]], BIC = TRUE)
 
 emtab_2805 <- function(file_name) {
     counts <- read.table(
@@ -141,6 +161,7 @@ emtab_2805 <- function(file_name) {
     libsizes <- colSums(counts)
     size.factors <- libsizes / mean(libsizes)
     logcounts(sce) <- log2(t(t(counts) / size.factors) + 1)
+    # print(head(logcounts(sce)))
     return(sce)
 }
 
