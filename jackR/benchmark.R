@@ -3,9 +3,6 @@ require("scater")
 require("CycleMix")
 require("stringr")
 
-## Answered Questions
-# For marioni, is "ERCC-00004" ok to have in rows? Don't need. RNA generated in the lab for control.
-
 # Don't need to log normalize, each file is a cell.
 # Round fpkm for counts, and put fpkm into the logcounts
 gse <- function() {
@@ -88,115 +85,125 @@ gse <- function() {
             col_data <- DataFrame(
                 row.names = col_data_xml$gsm,
                 Species = factor("Mus musculus"),
-                cell_type1 = col_data_xml$cell_type1, # why the "1" at the end?
-                Source = factor("ESC") # this may be different
+                cell_type1 = col_data_xml$cell_type1 # why the "1" at the end?
+                # Source = factor("ESC") # this may be different
             )
+            # verify that the correct phase is matched
             # print(col_data)
-            # print(col_data["GSM1036531", ]) # verify that the correct phase is matched
+            # print(col_data["GSM1036531", ])
 
-            # print(head(counts_data))
             logcounts <- cbind(logcounts, logcounts_data)
             counts <- cbind(counts, counts_data)
         }
     }
 
-    print(head(counts))
-    # print(col_data)
     sce <- SingleCellExperiment(
         assays = list(counts = counts),
         colData = col_data, # look at split function
         rowData = row_data
     )
     counts <- assay(sce, "counts") # double check this and the logcounts is what she wanted.
-    # print("ok")
-    print(head(logcounts))
+    # print(head(logcounts))
     logcounts(sce) <- logcounts
     return(sce)
 }
 
-gse_output <- gse()
-output2 <- classifyCells(gse_output, MGeneSets$Cyclone)
-summary(factor(output2$phase))
-table(factor(output2$phase), gse_output$cell_type1)
-plotMixture(output2$fit[["G2M"]], BIC = TRUE)
+gse_output <- gse() # head(logcounts(gse_output))
+gse_classified <- classifyCells(gse_output, MGeneSets$Cyclone)
+# gse_classified <- classifyCells(gse_output, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
+summary(factor(gse_classified$phase))
+table(factor(gse_classified$phase), gse_output$cell_type1)
+# plotMixture(gse_classified$fit[["G2M"]], BIC = TRUE)
+# plotMixture(gse_classified$fit[["S"]], BIC = TRUE)
+# plotMixture(gse_classified$fit[["G1"]], BIC = TRUE)
 
-emtab_2805 <- function(file_name) {
-    counts <- read.table(
-        str_interp("./jackData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"), # nolint
-        header = TRUE
-    )
+invalidRowCounts <- c()
+for (i in colnames(logcounts(gse_output))) {
+    invalidRowCount <- 0
+    # if (i == "GSM1036501") {
+    #     print(logcounts(gse_output)[i])
+    # }
+    fileLogCounts <- logcounts(gse_output)[i]
+    # print(colnames(fileLogCounts))
+    colnames(fileLogCounts)
 
-    rownames(counts) <- counts$EnsemblGeneID
+    logcountsRows <- row.names(fileLogCounts)
+    cycloneRows <- row.names(MGeneSets$Cyclone)
+    for (cycloneRow in row.names(MGeneSets$Cyclone)) {
+        if (is.element(cycloneRow, logcountsRows)) {
+            # print(head(fileLogCounts))
+            if (fileLogCounts[cycloneRow, ] < 5) {
+                invalidRowCount <- invalidRowCount + 1
+                # print(invalidRowCount)
+            }
+            # print(cycloneRow)
+            # print(type(fileLogCounts[fileLogCounts[[1]] > 5, ]))
+            # print(nrow(fileLogCounts))
+        }
+    }
+    invalidRowCounts <- append(invalidRowCounts, invalidRowCount / nrow(MGeneSets$Cyclone) * 100)
+    # print(invalidRowCounts)
+}
+print(invalidRowCounts)
 
-    counts <- head(counts, -97)
-    row_data <- DataFrame(
-        row.names = counts$EnsemblGeneID,
-        feature_symbol = factor(counts$AssociatedGeneName)
-    )
+# try subsetting MGeneSets$Cyclone by removing rows with Dir of -1 => this did improve it... but not a lot
+# look at average logcounts, the rows that have genes from MGeneSets$Cyclone. If the values are small (less than 5) they are not good indicators of the phase and how many are there. => 14 cells had poor logcounts, but 46 were not classified.
 
-    col_data <- DataFrame(
-        row.names = colnames(counts)[5:100],
-        Species = factor("Mus musculus"),
-        cell_type1 = factor(
-            substr(colnames(counts)[5:100], 1, 2)
-        ),
-        Source = factor("ESC")
-    )
-    # print(head(counts))
-    counts <- subset(counts,
-        select = -c(
-            EnsemblGeneID,
-            EnsemblTranscriptID,
-            AssociatedGeneName,
-            GeneLength
+emtab_2805 <- function() {
+    emtab_2805_file <- function(file_name) {
+        counts <- read.table(
+            str_interp("./jackData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"), # nolint
+            header = TRUE
         )
+
+        rownames(counts) <- counts$EnsemblGeneID
+
+        counts <- head(counts, -97)
+        row_data <- DataFrame(
+            row.names = counts$EnsemblGeneID,
+            feature_symbol = factor(counts$AssociatedGeneName)
+        )
+
+        col_data <- DataFrame(
+            row.names = colnames(counts)[5:100],
+            Species = factor("Mus musculus"),
+            cell_type1 = factor(
+                substr(colnames(counts)[5:100], 1, 2)
+            ),
+            Source = factor("ESC")
+        )
+
+        counts <- subset(counts,
+            select = -c(
+                EnsemblGeneID,
+                EnsemblTranscriptID,
+                AssociatedGeneName,
+                GeneLength
+            )
+        )
+        # print(head(counts))
+        sce <- SingleCellExperiment(
+            assays = list(counts = counts),
+            colData = col_data,
+            rowData = row_data
+        )
+        counts <- assay(sce, "counts")
+        libsizes <- colSums(counts)
+        size.factors <- libsizes / mean(libsizes)
+        logcounts(sce) <- log2(t(t(counts) / size.factors) + 1)
+        return(sce)
+    }
+
+    emtab_2805_res <- cbind(
+        emtab_2805_file("G1_singlecells_counts"),
+        emtab_2805_file("G2M_singlecells_counts"),
+        emtab_2805_file("S_singlecells_counts")
     )
-    print(head(counts))
-    sce <- SingleCellExperiment(
-        assays = list(counts = counts),
-        colData = col_data,
-        rowData = row_data
-    )
-    counts <- assay(sce, "counts")
-    libsizes <- colSums(counts)
-    size.factors <- libsizes / mean(libsizes)
-    logcounts(sce) <- log2(t(t(counts) / size.factors) + 1)
-    # print(head(logcounts(sce)))
-    return(sce)
+    return(emtab_2805_res)
 }
 
-emtab_2805_res <- cbind(
-    emtab_2805("G1_singlecells_counts"),
-    emtab_2805("G2M_singlecells_counts"),
-    emtab_2805("S_singlecells_counts")
-)
-
-# output2 <- classifyCells(emtab_2805_res, MGeneSets$Cyclone)
-# summary(factor(output2$phase))
-# table(factor(output2$phase), emtab_2805_res$cell_type1)
-# plotMixture(output2$fit[["G2M"]], BIC = TRUE)
-
-marioni <- function() {
-    counts <- read.table(
-        "./jackData/Marioni_lab_1_Jul_2015_gene_counts_table.txt"
-    )
-
-    rownames_length <- length(rownames(counts)) - 5
-    row_data <- DataFrame(
-        row.names = rownames(counts)[1:rownames_length]
-        # feature_symbol = what to put here. should be a gene e.g., GNAI3. Specify to use ENSMUSG00000000001 to  MGeneSets$Cyclone. Tried to use the example from EnsemblStuff. downloadEnsemblData() gives error, can't install biomaRt.
-    )
-
-    col_data <- DataFrame(
-        row.names = colnames(counts),
-        Species = factor("Mus musculus"),
-        cell_type1 = factor(), # what to put here? G1, S, G2M ... look at the paper or database. Looked at both. It said just the three phases. There were two datasets mentioned...
-        Source = factor("ESC")
-    )
-
-    sce <- SingleCellExperiment(
-        assays = list(counts = counts),
-        colData = col_data,
-        rowData = row_data
-    )
-}
+# emtab_2805_output <- emtab_2805() # should get
+# emtab_2805_classified <- classifyCells(emtab_2805_output, MGeneSets$Cyclone)
+# summary(factor(emtab_2805_classified$phase))
+# table(factor(emtab_2805_classified$phase), emtab_2805_output$cell_type1)
+# plotMixture(emtab_2805_classified$fit[["G2M"]], BIC = TRUE)
