@@ -2,7 +2,7 @@ require("SingleCellExperiment")
 require("scater")
 require("CycleMix")
 require("stringr")
-
+library("Seurat")
 
 # Don't need to log normalize, each file is a cell.
 # Round fpkm for counts, and put fpkm into the logcounts
@@ -26,7 +26,7 @@ gse <- function() {
         feature_symbol = factor(counts$gene.symbol)
     )
 
-    # remove unneeded info
+    # remove unneeded info. counts is empty with only rownames = ensembl id now
     counts <- subset(counts,
         select = -c(
             id,
@@ -34,6 +34,8 @@ gse <- function() {
             fpkm
         )
     )
+
+    # duplicate counts variable for logcounts
     logcounts <- counts
 
     # copy/pasted this from gseParse
@@ -48,16 +50,23 @@ gse <- function() {
         pattern = ".*.txt"
     )
 
+    # for each file
     for (file in files) {
+
+        # if the file name matches the col_data
         gsm <- substr(file, 1, 10)
         if (is.element(gsm, col_data_xml$gsm)) {
+            # get the data for the file
             counts_data <- read.table(
                 str_interp("./jackData/GSE42268/GSE42268_RAW/${file}"),
                 header = TRUE
             )
 
+            # format the data
             format_counts <- function(count_type) {
-                if (count_type != "logcounts") {
+
+                # round data if counts
+                if (count_type == "counts") {
                     data <- data.frame(
                         lapply(
                             counts_data,
@@ -68,8 +77,10 @@ gse <- function() {
                     data <- counts_data
                 }
 
+                # sets rownames to ids
                 rownames(data) <- data$id
 
+                # remove uneeded data
                 data <- subset(data,
                     select = -c(
                         id,
@@ -80,42 +91,53 @@ gse <- function() {
                 colnames(data)[1] <- gsm
                 return(data)
             }
+
+            # the values for the gene expression
             logcounts_data <- format_counts("logcounts")
             counts_data <- format_counts("counts")
+            # print(head(counts_data))
+            # print(head(logcount_data))
 
+            # the phases of cells
             col_data <- DataFrame(
                 row.names = col_data_xml$gsm,
                 Species = factor("Mus musculus"),
-                cell_type1 = col_data_xml$cell_type1 # why the "1" at the end?
+                cell_type1 = col_data_xml$cell_type1
             )
             # verify that the correct phase is matched
             # print(col_data)
             # print(col_data["GSM1036531", ])
 
+            # combine phases and expressions
             logcounts <- cbind(logcounts, logcounts_data)
             counts <- cbind(counts, counts_data)
+            # print(head(logcounts))
+            # print(head(counts))
         }
     }
 
     sce <- SingleCellExperiment(
         assays = list(counts = counts),
-        colData = col_data, # look at split function
+        colData = col_data,
         rowData = row_data
     )
     # print(assays(sce))
-    counts <- assay(sce, "counts") # double check this and the logcounts is what she wanted. # nolint
+    counts <- assay(sce, "counts")
+    # libsizes <- colSums(logcounts)
+    # size.factors <- libsizes / mean(libsizes)
+    logcounts(sce) <- log2(t(t(logcounts)) + 1)
     # print(head(logcounts))
-    logcounts(sce) <- logcounts
+    # print(head(counts))
+    # logcounts(sce) <- logcounts
     return(sce)
 }
 
 gse_output <- gse()
 # head(logcounts(gse_output))
-# gse_classified <- classifyCells(gse_output, MGeneSets$Cyclone)
-# gse_classified <- classifyCells(gse_output, MGeneSets$Cyclone)
+gse_classified <- classifyCells(gse_output, MGeneSets$Cyclone)
 # gse_classified <- classifyCells(gse_output, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
-# summary(factor(gse_classified$phase))
-# table(factor(gse_classified$phase), gse_output$cell_type1)
+summary(factor(gse_classified$phase))
+table(factor(gse_classified$phase), gse_output$cell_type1)
 # plotMixture(gse_classified$fit[["G2M"]], BIC = TRUE)
 # plotMixture(gse_classified$fit[["S"]], BIC = TRUE)
 # plotMixture(gse_classified$fit[["G1"]], BIC = TRUE)
@@ -182,6 +204,7 @@ emtab_2805_output <- emtab_2805() # should get
 # emtab_2805_seurat <- ScaleData(emtab_2805_seurat, features = rownames(emtab_2805_seurat))
 # emtab_2805_seurat <- RunPCA(emtab_2805_seurat, features = VariableFeatures(emtab_2805_seurat), ndims.print = 6:10, nfeatures.print = 10)
 # CellCycleScoring(emtab_2805_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+# look at changing the ensemble gene names to the gene symbols
 
 # emtab_2805_classified <- classifyCells(emtab_2805_output, MGeneSets$Cyclone)
 # summary(factor(emtab_2805_classified$phase))
@@ -222,7 +245,7 @@ cell_validity <- function() {
     # try subsetting MGeneSets$Cyclone by removing rows with Dir of -1 => this did improve it... but not a lot # nolint # nolint
     # look at average logcounts, the rows that have genes from MGeneSets$Cyclone. If the values are small (less than 5) they are not good indicators of the phase and how many are there. => 14 cells had poor logcounts, but 46 were not classified. # nolint
 }
-validity <- cell_validity()
+# validity <- cell_validity()
 
 wilcox <- function() {
     "
@@ -280,16 +303,16 @@ wilcox <- function() {
         print(paste(ensemble_id, wilcox.test(g2m, g1)$p.value))
     }
 }
-
 # wilcox()
-# for each gene
+# for each gene in the cyclemix
+# look in the apply function
 # wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1) # nolint
 
 wilcox2 <- function() {
     "
-             row.name (ensembleID),   gsmcellname
-             phase                    [phase]
-    e.g.,    ENSMUSG00000000049       [fpkm]
+            row.name (ensembleID)    gsmcellname
+            ENSMUSG00000000049       [fpkm]
+            phase                    [phase]
     "
 
     # counts should be something like
@@ -304,11 +327,7 @@ wilcox2 <- function() {
 
     # adds row.name with ensembleID
     rownames(counts) <- counts$id
-
-
-
-    # add phase to row.name
-    # counts[nrow(counts) + 1, ] <- append(rownames(counts), "phase")
+    ensemble_ids <- counts$id
 
     # adds gene.symbol with gene symbol
     row_data <- DataFrame(
@@ -390,6 +409,18 @@ wilcox2 <- function() {
     }
     counts[nrow(counts) + 1, ] <- list("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1")
     rownames(counts)[36808] <- "phase"
+    names(df)[which(df == 1, arr.ind = T)[, "col"]]
+
+    # for (ensemble_id in ensemble_ids) {
+    #     g2m <- c()
+    #     g1 <- c()
+    #     s <- c()
+
+    #     g2m <- counts
+
+    #     print(paste(ensemble_id, wilcox.test(g2m, s)$p.value))
+    #     print(paste(ensemble_id, wilcox.test(g2m, g1)$p.value))
+    # }
     # sce <- SingleCellExperiment(
     #     assays = list(counts = counts),
     #     colData = col_data, # look at split function
@@ -401,4 +432,4 @@ wilcox2 <- function() {
     # logcounts(sce) <- logcounts
     # return(sce)
 }
-wilcox2()
+# wilcox2()
