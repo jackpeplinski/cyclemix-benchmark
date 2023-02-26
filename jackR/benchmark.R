@@ -132,11 +132,11 @@ gse <- function() {
     return(sce)
 }
 
-gse_output <- gse()
+# gse_output <- gse()
 # head(logcounts(gse_output))
-gse_classified <- classifyCells(gse_output, MGeneSets$Cyclone)
+# gse_classified <- classifyCells(gse_output, MGeneSets$Cyclone)
 # gse_classified <- classifyCells(gse_output, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
-summary(factor(gse_classified$phase))
+# summary(factor(gse_classified$phase))
 # table(factor(gse_classified$phase), gse_output$cell_type1)
 # plotMixture(gse_classified$fit[["G2M"]], BIC = TRUE)
 # plotMixture(gse_classified$fit[["S"]], BIC = TRUE)
@@ -247,6 +247,7 @@ cell_validity <- function() {
 }
 # validity <- cell_validity()
 
+# very slow
 wilcox <- function() {
     "
     get row names from file
@@ -316,6 +317,7 @@ wilcox <- function() {
                     g1 <- append(g1, fpkm)
                 }
             }
+            print(g2m)
             print(paste(ensemble_id, wilcox.test(g2m, s)$p.value))
             print(paste(ensemble_id, wilcox.test(g2m, g1)$p.value))
         }
@@ -325,3 +327,69 @@ wilcox <- function() {
 # for each gene in the cyclemix
 # look in the apply function
 # wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1) # nolint
+
+wilcox2 <- function() {
+    "
+        row.name (ensembleID)    gsmcellname
+        ENSMUSG00000000049       0.002000
+    "
+
+    # set row names to ensemble ids
+    counts <- read.table(
+        str_interp("./jackData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
+        header = TRUE
+    )
+    ensemble_ids <- counts$id
+    df <- data.frame(row.names = ensemble_ids)
+
+    # set columns with fpkms
+    files <- list.files(
+        path =
+            "./jackData/GSE42268/GSE42268_RAW",
+        pattern = ".*.txt"
+    )
+
+    "
+        gsm          cell_type1
+        GSM1036483   G1
+        ...
+    "
+    # not all cells have phases
+    col_data_xml <- data.frame(
+        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"), # nolint
+        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556") # nolint
+    )
+
+    gsms <- col_data_xml$gsm
+    for (file in files) {
+        gsm <- substr(file, 1, 10)
+        if (is.element(gsm, gsms)) {
+            counts_data <- read.table(
+                str_interp("./jackData/GSE42268/GSE42268_RAW/${file}"),
+                header = TRUE
+            )
+            counts_data <- subset(counts_data,
+                select = -c(
+                    id,
+                    gene.symbol
+                )
+            )
+            df[, gsm] <- counts_data
+        }
+    }
+
+    # wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1) # nolint
+    g2m <- c()
+    g1 <- c()
+    s <- c()
+    gsmsG2M <- col_data_xml[col_data_xml$cell_type1 == "G2/M", ]$gsm
+    gsmsG1 <- col_data_xml[col_data_xml$cell_type1 == "G1", ]$gsm
+    gsmsS <- col_data_xml[col_data_xml$cell_type1 == "S", ]$gsm
+
+    countsG2M <- df[gsmsG2M]
+    countsG1 <- df[gsmsG1]
+    countsS <- df[gsmsS]
+    print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsG1)))$p.value)
+    print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsS)))$p.value)
+}
+wilcox2()
