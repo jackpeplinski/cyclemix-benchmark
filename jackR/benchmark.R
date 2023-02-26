@@ -40,8 +40,8 @@ gse <- function() {
 
     # copy/pasted this from gseParse
     col_data_xml <- data.frame(
-        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"), # nolint
-        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556") # nolint
+        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"),
+        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556")
     )
 
     files <- list.files(
@@ -123,11 +123,9 @@ gse <- function() {
     )
     # print(assays(sce))
     counts <- assay(sce, "counts")
-    # libsizes <- colSums(logcounts)
-    # size.factors <- libsizes / mean(libsizes)
+    libsizes <- colSums(logcounts)
+    size.factors <- libsizes / mean(libsizes)
     logcounts(sce) <- log2(t(t(logcounts)) + 1)
-    # print(head(logcounts))
-    # print(head(counts))
     # logcounts(sce) <- logcounts
     return(sce)
 }
@@ -144,19 +142,30 @@ gse <- function() {
 
 emtab_2805 <- function() {
     emtab_2805_file <- function(file_name) {
+        # get values
         counts <- read.table(
-            str_interp("./jackData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"), # nolint
+            str_interp("./jackData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"),
             header = TRUE
         )
+        counts$AssociatedGeneName <- toupper(counts$AssociatedGeneName)
+        counts <- counts[!duplicated(counts$AssociatedGeneName), ]
+        counts <- na.omit(counts)
 
-        rownames(counts) <- counts$EnsemblGeneID
 
+
+        # set rownames
+        rownames(counts) <- counts$AssociatedGeneName
+
+        # remove unused values
         counts <- head(counts, -97)
+
+        # build needed df for sce
         row_data <- DataFrame(
-            row.names = counts$EnsemblGeneID,
+            row.names = counts$AssociatedGeneName,
             feature_symbol = factor(counts$AssociatedGeneName)
         )
 
+        # build needed df for sce
         col_data <- DataFrame(
             row.names = colnames(counts)[5:100],
             Species = factor("Mus musculus"),
@@ -166,6 +175,7 @@ emtab_2805 <- function() {
             Source = factor("ESC")
         )
 
+        # remove unneeded data
         counts <- subset(counts,
             select = -c(
                 EnsemblGeneID,
@@ -174,7 +184,8 @@ emtab_2805 <- function() {
                 GeneLength
             )
         )
-        # print(head(counts))
+
+        # build sce
         sce <- SingleCellExperiment(
             assays = list(counts = counts),
             colData = col_data,
@@ -194,16 +205,17 @@ emtab_2805 <- function() {
     )
     return(emtab_2805_res)
 }
-# emtab_2805_output <- emtab_2805() # should get
+emtab_2805_output <- emtab_2805() # should get
 
-# s.genes <- cc.genes$s.genes
-# g2m.genes <- cc.genes$g2m.genes
-# emtab_2805_seurat <- as.Seurat(emtab_2805_output)
-# emtab_2805_seurat <- NormalizeData(emtab_2805_seurat)
-# emtab_2805_seurat <- FindVariableFeatures(emtab_2805_seurat, selection.method = "vst")
-# emtab_2805_seurat <- ScaleData(emtab_2805_seurat, features = rownames(emtab_2805_seurat))
-# emtab_2805_seurat <- RunPCA(emtab_2805_seurat, features = VariableFeatures(emtab_2805_seurat), ndims.print = 6:10, nfeatures.print = 10)
-# CellCycleScoring(emtab_2805_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+print(s.genes)
+emtab_2805_seurat <- as.Seurat(emtab_2805_output)
+emtab_2805_seurat <- NormalizeData(emtab_2805_seurat)
+emtab_2805_seurat <- FindVariableFeatures(emtab_2805_seurat, selection.method = "vst")
+emtab_2805_seurat <- ScaleData(emtab_2805_seurat, features = rownames(emtab_2805_seurat))
+emtab_2805_seurat <- RunPCA(emtab_2805_seurat, features = VariableFeatures(emtab_2805_seurat), ndims.print = 6:10, nfeatures.print = 10)
+CellCycleScoring(emtab_2805_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
 # look at changing the ensemble gene names to the gene symbols
 
 # emtab_2805_classified <- classifyCells(emtab_2805_output, MGeneSets$Cyclone)
@@ -227,23 +239,23 @@ cell_validity <- function() {
         cyclone_rows <- row.names(MGeneSets$Cyclone)
         for (cycloneRow in cyclone_rows) {
             if (is.element(cycloneRow, logcounts_rows)) {
-                # print(head(fileLogCounts)) # nolint
+                # print(head(fileLogCounts))
                 if (file_log_counts[cycloneRow, ] < 5) {
                     invalid_row_count <- invalid_row_count + 1
-                    # print(invalidRowCount) # nolint
+                    # print(invalidRowCount)
                 }
-                # print(cycloneRow) # nolint
-                # print(type(fileLogCounts[fileLogCounts[[1]] > 5, ])) # nolint
-                # print(nrow(fileLogCounts)) # nolint
+                # print(cycloneRow)
+                # print(type(fileLogCounts[fileLogCounts[[1]] > 5, ]))
+                # print(nrow(fileLogCounts))
             }
         }
         invalid_row_counts <- append(invalid_row_counts, invalid_row_count
         / nrow(MGeneSets$Cyclone) * 100)
-        # print(invalidRowCounts) # nolint
+        # print(invalidRowCounts)
     }
     return(invalid_row_counts)
-    # try subsetting MGeneSets$Cyclone by removing rows with Dir of -1 => this did improve it... but not a lot # nolint # nolint
-    # look at average logcounts, the rows that have genes from MGeneSets$Cyclone. If the values are small (less than 5) they are not good indicators of the phase and how many are there. => 14 cells had poor logcounts, but 46 were not classified. # nolint
+    # try subsetting MGeneSets$Cyclone by removing rows with Dir of -1 => this did improve it... but not a lot
+    # look at average logcounts, the rows that have genes from MGeneSets$Cyclone. If the values are small (less than 5) they are not good indicators of the phase and how many are there. => 14 cells had poor logcounts, but 46 were not classified.
 }
 # validity <- cell_validity()
 
@@ -275,8 +287,8 @@ wilcox <- function() {
 
     # get cell phases from python script
     col_data_xml <- data.frame(
-        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"), # nolint
-        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556") # nolint
+        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"),
+        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556")
     )
 
     # for each id
@@ -326,8 +338,9 @@ wilcox <- function() {
 # wilcox()
 # for each gene in the cyclemix
 # look in the apply function
-# wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1) # nolint
+# wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1)
 
+# faster
 wilcox2 <- function() {
     "
         row.name (ensembleID)    gsmcellname
@@ -356,8 +369,8 @@ wilcox2 <- function() {
     "
     # not all cells have phases
     col_data_xml <- data.frame(
-        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"), # nolint
-        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556") # nolint
+        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"),
+        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556")
     )
 
     gsms <- col_data_xml$gsm
@@ -378,7 +391,7 @@ wilcox2 <- function() {
         }
     }
 
-    # wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1) # nolint
+    # wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1)
     g2m <- c()
     g1 <- c()
     s <- c()
@@ -392,4 +405,4 @@ wilcox2 <- function() {
     print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsG1)))$p.value)
     print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsS)))$p.value)
 }
-wilcox2()
+# wilcox2()
