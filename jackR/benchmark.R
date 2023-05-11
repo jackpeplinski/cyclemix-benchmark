@@ -207,15 +207,15 @@ emtab_2805 <- function() {
 }
 emtab_2805_output <- emtab_2805() # should get
 
-s.genes <- cc.genes$s.genes
-g2m.genes <- cc.genes$g2m.genes
-print(s.genes)
-emtab_2805_seurat <- as.Seurat(emtab_2805_output)
-emtab_2805_seurat <- NormalizeData(emtab_2805_seurat)
-emtab_2805_seurat <- FindVariableFeatures(emtab_2805_seurat, selection.method = "vst")
-emtab_2805_seurat <- ScaleData(emtab_2805_seurat, features = rownames(emtab_2805_seurat))
-emtab_2805_seurat <- RunPCA(emtab_2805_seurat, features = VariableFeatures(emtab_2805_seurat), ndims.print = 6:10, nfeatures.print = 10)
-CellCycleScoring(emtab_2805_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+# s.genes <- cc.genes$s.genes
+# g2m.genes <- cc.genes$g2m.genes
+# print(s.genes)
+# emtab_2805_seurat <- as.Seurat(emtab_2805_output)
+# emtab_2805_seurat <- NormalizeData(emtab_2805_seurat)
+# emtab_2805_seurat <- FindVariableFeatures(emtab_2805_seurat, selection.method = "vst")
+# emtab_2805_seurat <- ScaleData(emtab_2805_seurat, features = rownames(emtab_2805_seurat))
+# emtab_2805_seurat <- RunPCA(emtab_2805_seurat, features = VariableFeatures(emtab_2805_seurat), ndims.print = 6:10, nfeatures.print = 10)
+# CellCycleScoring(emtab_2805_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
 # look at changing the ensemble gene names to the gene symbols
 
 # emtab_2805_classified <- classifyCells(emtab_2805_output, MGeneSets$Cyclone)
@@ -391,10 +391,12 @@ wilcox2 <- function() {
         }
     }
 
-    # wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1)
-    g2m <- c()
-    g1 <- c()
-    s <- c()
+    print(head(df))
+
+    # wilcox.test(#vector of all the values of the cells for each gene that are G2M, #same but for S/G1)
+    # g2m <- c()
+    # g1 <- c()
+    # s <- c()
     gsmsG2M <- col_data_xml[col_data_xml$cell_type1 == "G2/M", ]$gsm
     gsmsG1 <- col_data_xml[col_data_xml$cell_type1 == "G1", ]$gsm
     gsmsS <- col_data_xml[col_data_xml$cell_type1 == "S", ]$gsm
@@ -402,7 +404,37 @@ wilcox2 <- function() {
     countsG2M <- df[gsmsG2M]
     countsG1 <- df[gsmsG1]
     countsS <- df[gsmsS]
-    print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsG1)))$p.value)
-    print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsS)))$p.value)
+
+    print("Writing to file...")
+    file <- file("output.txt", "w")
+    for (row in rownames(countsG2M)) {
+        x <- countsG2M[row, ]
+        y <- countsG1[row, ]
+        x <- 5
+        # also display the mean and output to a file so that we can sort it by pvalue
+        pval <- p.adjust(wilcox.test(as.numeric(unlist((x))), as.numeric(unlist(y)))$p.value, method = "fdr")
+        line <- paste(row, pval, sep = " ")
+        # print(line)
+        writeLines(line, file)
+        # file = file("wilcox.txt")
+    }
+    close(file)
+    print("Writing done.")
+    # adjusted p-value
+    # how many are below 0.05
+
+    # print(head(countsG2M))
+    # print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsG1)))$p.value)
+    # print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsS)))$p.value)
 }
 # wilcox2()
+
+readFile <- function() {
+    df <- read.table(
+        "output.txt",
+        header = TRUE
+    )
+    return(df)
+}
+df <- readFile() # nrow(df[df$p_value<0.05,]), mean(df$p_value)
+df2 <- df[order(df$p_value), ]
