@@ -4,12 +4,18 @@ require("CycleMix")
 require("stringr")
 library("Seurat")
 
-# Don't need to log normalize, each file is a cell.
-# Round fpkm for counts, and put fpkm into the logcounts
-gse <- function() {
-    # counts should be something like
-    # with headers: row.name (ensembleID),   gsmcellname
-    #               e.g.,ENSMUSG00000000049  [fpkm]
+"
+GSE42268 Dataset Notes:
+- Don't need to log normalize values
+- Each file is a cell
+- Round fpkm for counts
+- Put fpkm into the logcounts
+"
+
+format_gse_42268 <- function() {
+    # counts should have a structure like:
+    # row.name                 gsmcellname
+    # ENSMUSG00000000049       [fpkm]
 
     # load counts info; doesn't matter which file, could be any
     counts <- read.table(
@@ -130,108 +136,28 @@ gse <- function() {
     return(sce)
 }
 
-# gse_output <- gse()
-# head(logcounts(gse_output))
-# gse_classified <- classifyCells(gse_output, MGeneSets$Cyclone)
-# gse_classified <- classifyCells(gse_output, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
-# summary(factor(gse_classified$phase))
-# table(factor(gse_classified$phase), gse_output$cell_type1)
-# plotMixture(gse_classified$fit[["G2M"]], BIC = TRUE)
-# plotMixture(gse_classified$fit[["S"]], BIC = TRUE)
-# plotMixture(gse_classified$fit[["G1"]], BIC = TRUE)
-
-emtab_2805 <- function() {
-    emtab_2805_file <- function(file_name) {
-        # get values
-        counts <- read.table(
-            str_interp("./jackData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"),
-            header = TRUE
-        )
-        counts$AssociatedGeneName <- toupper(counts$AssociatedGeneName)
-        counts <- counts[!duplicated(counts$AssociatedGeneName), ]
-        counts <- na.omit(counts)
-
-
-
-        # set rownames
-        rownames(counts) <- counts$AssociatedGeneName
-
-        # remove unused values
-        counts <- head(counts, -97)
-
-        # build needed df for sce
-        row_data <- DataFrame(
-            row.names = counts$AssociatedGeneName,
-            feature_symbol = factor(counts$AssociatedGeneName)
-        )
-
-        # build needed df for sce
-        col_data <- DataFrame(
-            row.names = colnames(counts)[5:100],
-            Species = factor("Mus musculus"),
-            cell_type1 = factor(
-                substr(colnames(counts)[5:100], 1, 2)
-            ),
-            Source = factor("ESC")
-        )
-
-        # remove unneeded data
-        counts <- subset(counts,
-            select = -c(
-                EnsemblGeneID,
-                EnsemblTranscriptID,
-                AssociatedGeneName,
-                GeneLength
-            )
-        )
-
-        # build sce
-        sce <- SingleCellExperiment(
-            assays = list(counts = counts),
-            colData = col_data,
-            rowData = row_data
-        )
-        counts <- assay(sce, "counts")
-        libsizes <- colSums(counts)
-        size.factors <- libsizes / mean(libsizes)
-        logcounts(sce) <- log2(t(t(counts) / size.factors) + 1)
-        return(sce)
-    }
-
-    emtab_2805_res <- cbind(
-        emtab_2805_file("G1_singlecells_counts"),
-        emtab_2805_file("G2M_singlecells_counts"),
-        emtab_2805_file("S_singlecells_counts")
-    )
-    return(emtab_2805_res)
+classify_gse_42268 <- function() {
+    gse_sce <- format_gse_42268()
+    head(logcounts(gse_sce))
+    gse_classified <- classifyCells(gse_sce, MGeneSets$Cyclone)
+    gse_classified <- classifyCells(gse_sce, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
+    summary(factor(gse_classified$phase))
+    table(factor(gse_classified$phase), gse_sce$cell_type1)
+    plotMixture(gse_classified$fit[["G2M"]], BIC = TRUE)
+    plotMixture(gse_classified$fit[["S"]], BIC = TRUE)
+    plotMixture(gse_classified$fit[["G1"]], BIC = TRUE)
 }
-emtab_2805_output <- emtab_2805() # should get
 
-# s.genes <- cc.genes$s.genes
-# g2m.genes <- cc.genes$g2m.genes
-# print(s.genes)
-# emtab_2805_seurat <- as.Seurat(emtab_2805_output)
-# emtab_2805_seurat <- NormalizeData(emtab_2805_seurat)
-# emtab_2805_seurat <- FindVariableFeatures(emtab_2805_seurat, selection.method = "vst")
-# emtab_2805_seurat <- ScaleData(emtab_2805_seurat, features = rownames(emtab_2805_seurat))
-# emtab_2805_seurat <- RunPCA(emtab_2805_seurat, features = VariableFeatures(emtab_2805_seurat), ndims.print = 6:10, nfeatures.print = 10)
-# CellCycleScoring(emtab_2805_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-# look at changing the ensemble gene names to the gene symbols
-
-# emtab_2805_classified <- classifyCells(emtab_2805_output, MGeneSets$Cyclone)
-# summary(factor(emtab_2805_classified$phase))
-# table(factor(emtab_2805_classified$phase), emtab_2805_output$cell_type1)
-# plotMixture(emtab_2805_classified$fit[["G2M"]], BIC = TRUE)
-
-cell_validity <- function() {
+validate_gse_42268 <- function() {
+    gse_sce <- format_gse_42268()
     invalid_row_counts <- c()
-    for (i in colnames(logcounts(gse_output))) { # names of files
-        # print(colnames(logcounts(gse_output)))
+    for (i in colnames(logcounts(gse_sce))) { # names of files
+        # print(colnames(logcounts(gse_sce)))
         invalid_row_count <- 0
         # if (i == "GSM1036501") {
-        #     print(logcounts(gse_output)[i])
+        #     print(logcounts(gse_sce)[i])
         # }
-        file_log_counts <- logcounts(gse_output)[i]
+        file_log_counts <- logcounts(gse_sce)[i]
         # print(colnames(fileLogCounts))
         colnames(file_log_counts)
 
@@ -257,10 +183,10 @@ cell_validity <- function() {
     # try subsetting MGeneSets$Cyclone by removing rows with Dir of -1 => this did improve it... but not a lot
     # look at average logcounts, the rows that have genes from MGeneSets$Cyclone. If the values are small (less than 5) they are not good indicators of the phase and how many are there. => 14 cells had poor logcounts, but 46 were not classified.
 }
-# validity <- cell_validity()
 
-# very slow
-wilcox <- function() {
+# for each gene in the cyclemix
+# wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1)
+wilcox_gse_42268 <- function() {
     "
     get row names from file
     for each ensemble id
@@ -335,13 +261,8 @@ wilcox <- function() {
         }
     }
 }
-# wilcox()
-# for each gene in the cyclemix
-# look in the apply function
-# wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1)
 
-# faster
-wilcox2 <- function() {
+wilcox_fast_gse_42268 <- function() {
     "
         row.name (ensembleID)    gsmcellname
         ENSMUSG00000000049       0.002000
@@ -426,16 +347,99 @@ wilcox2 <- function() {
     # print(head(countsG2M))
     # print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsG1)))$p.value)
     # print(wilcox.test(as.numeric(unlist(countsG2M)), as.numeric(unlist(countsS)))$p.value)
-}
-# wilcox2()
 
-readFile <- function() {
-    df <- read.table(
-        "output.txt",
-        header = TRUE
+    readFile <- function() {
+        df <- read.table(
+            "output.txt",
+            header = TRUE
+        )
+        return(df)
+    }
+    # df <- readFile() # nrow(df[df$p_value<0.05,]), mean(df$p_value)
+    # df2 <- df[order(df$p_value), ]
+}
+
+format_emtab_2805 <- function() {
+    emtab_2805_file <- function(file_name) {
+        # get values
+        counts <- read.table(
+            str_interp("./jackData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"),
+            header = TRUE
+        )
+        counts$AssociatedGeneName <- toupper(counts$AssociatedGeneName)
+        counts <- counts[!duplicated(counts$AssociatedGeneName), ]
+        counts <- na.omit(counts)
+
+
+
+        # set rownames
+        rownames(counts) <- counts$AssociatedGeneName
+
+        # remove unused values
+        counts <- head(counts, -97)
+
+        # build needed df for sce
+        row_data <- DataFrame(
+            row.names = counts$AssociatedGeneName,
+            feature_symbol = factor(counts$AssociatedGeneName)
+        )
+
+        # build needed df for sce
+        col_data <- DataFrame(
+            row.names = colnames(counts)[5:100],
+            Species = factor("Mus musculus"),
+            cell_type1 = factor(
+                substr(colnames(counts)[5:100], 1, 2)
+            ),
+            Source = factor("ESC")
+        )
+
+        # remove unneeded data
+        counts <- subset(counts,
+            select = -c(
+                EnsemblGeneID,
+                EnsemblTranscriptID,
+                AssociatedGeneName,
+                GeneLength
+            )
+        )
+
+        # build sce
+        sce <- SingleCellExperiment(
+            assays = list(counts = counts),
+            colData = col_data,
+            rowData = row_data
+        )
+        counts <- assay(sce, "counts")
+        libsizes <- colSums(counts)
+        size.factors <- libsizes / mean(libsizes)
+        logcounts(sce) <- log2(t(t(counts) / size.factors) + 1)
+        return(sce)
+    }
+
+    emtab_2805_res <- cbind(
+        emtab_2805_file("G1_singlecells_counts"),
+        emtab_2805_file("G2M_singlecells_counts"),
+        emtab_2805_file("S_singlecells_counts")
     )
-    return(df)
+    return(emtab_2805_res)
 }
 
-# df <- readFile() # nrow(df[df$p_value<0.05,]), mean(df$p_value)
-# df2 <- df[order(df$p_value), ]
+classify_emtab_2805() <- function() {
+    emtab_sce <- format_emtab_2805()
+    # s.genes <- cc.genes$s.genes
+    # g2m.genes <- cc.genes$g2m.genes
+    # print(s.genes)
+    # emtab_2805_seurat <- as.Seurat(emtab_2805_output)
+    # emtab_2805_seurat <- NormalizeData(emtab_2805_seurat)
+    # emtab_2805_seurat <- FindVariableFeatures(emtab_2805_seurat, selection.method = "vst")
+    # emtab_2805_seurat <- ScaleData(emtab_2805_seurat, features = rownames(emtab_2805_seurat))
+    # emtab_2805_seurat <- RunPCA(emtab_2805_seurat, features = VariableFeatures(emtab_2805_seurat), ndims.print = 6:10, nfeatures.print = 10)
+    # CellCycleScoring(emtab_2805_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    # look at changing the ensemble gene names to the gene symbols
+
+    # emtab_2805_classified <- classifyCells(emtab_2805_output, MGeneSets$Cyclone)
+    # summary(factor(emtab_2805_classified$phase))
+    # table(factor(emtab_2805_classified$phase), emtab_2805_output$cell_type1)
+    # plotMixture(emtab_2805_classified$fit[["G2M"]], BIC = TRUE)
+}
