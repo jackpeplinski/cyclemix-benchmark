@@ -436,5 +436,6 @@ readFile <- function() {
     )
     return(df)
 }
-df <- readFile() # nrow(df[df$p_value<0.05,]), mean(df$p_value)
-df2 <- df[order(df$p_value), ]
+
+# df <- readFile() # nrow(df[df$p_value<0.05,]), mean(df$p_value)
+# df2 <- df[order(df$p_value), ]
