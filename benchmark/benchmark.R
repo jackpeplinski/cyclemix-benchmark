@@ -11,7 +11,6 @@ GSE42268 Dataset Notes:
 - Round fpkm for counts
 - Put fpkm into the logcounts
 "
-
 format_gse_42268 <- function() {
     # counts should have a structure like:
     # row.name                 gsmcellname
@@ -19,7 +18,7 @@ format_gse_42268 <- function() {
 
     # load counts info; doesn't matter which file, could be any
     counts <- read.table(
-        str_interp("./jackData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
+        str_interp("./benchmarkData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
         header = TRUE
     )
 
@@ -52,7 +51,7 @@ format_gse_42268 <- function() {
 
     files <- list.files(
         path =
-            "./jackData/GSE42268/GSE42268_RAW",
+            "./benchmarkData/GSE42268/GSE42268_RAW",
         pattern = ".*.txt"
     )
 
@@ -64,7 +63,7 @@ format_gse_42268 <- function() {
         if (is.element(gsm, col_data_xml$gsm)) {
             # get the data for the file
             counts_data <- read.table(
-                str_interp("./jackData/GSE42268/GSE42268_RAW/${file}"),
+                str_interp("./benchmarkData/GSE42268/GSE42268_RAW/${file}"),
                 header = TRUE
             )
 
@@ -101,8 +100,6 @@ format_gse_42268 <- function() {
             # the values for the gene expression
             logcounts_data <- format_counts("logcounts")
             counts_data <- format_counts("counts")
-            # print(head(counts_data))
-            # print(head(logcount_data))
 
             # the phases of cells
             col_data <- DataFrame(
@@ -111,14 +108,11 @@ format_gse_42268 <- function() {
                 cell_type1 = col_data_xml$cell_type1
             )
             # verify that the correct phase is matched
-            # print(col_data)
             # print(col_data["GSM1036531", ])
 
             # combine phases and expressions
             logcounts <- cbind(logcounts, logcounts_data)
             counts <- cbind(counts, counts_data)
-            # print(head(logcounts))
-            # print(head(counts))
         }
     }
 
@@ -127,26 +121,33 @@ format_gse_42268 <- function() {
         colData = col_data,
         rowData = row_data
     )
-    # print(assays(sce))
     counts <- assay(sce, "counts")
     libsizes <- colSums(logcounts)
     size.factors <- libsizes / mean(libsizes)
     logcounts(sce) <- log2(t(t(logcounts)) + 1)
-    # logcounts(sce) <- logcounts
     return(sce)
 }
 
 classify_gse_42268 <- function() {
-    gse_sce <- format_gse_42268()
-    head(logcounts(gse_sce))
-    gse_classified <- classifyCells(gse_sce, MGeneSets$Cyclone)
-    gse_classified <- classifyCells(gse_sce, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
-    summary(factor(gse_classified$phase))
-    table(factor(gse_classified$phase), gse_sce$cell_type1)
-    plotMixture(gse_classified$fit[["G2M"]], BIC = TRUE)
-    plotMixture(gse_classified$fit[["S"]], BIC = TRUE)
-    plotMixture(gse_classified$fit[["G1"]], BIC = TRUE)
+    cat("===GSE 42268 CycleMix===\n")
+    gse_sce <<- format_gse_42268()
+    gse_cm <<- classifyCells(gse_sce, MGeneSets$Cyclone)
+    # gse_classified <- classifyCells(gse_sce, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
+    print(table(factor(gse_cm$phase), gse_sce$cell_type1))
+
+    cat("====GSE 42268 CycleMix====\n")
+    seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
+    s.genes <- seurat_mouse_orth$mmus_s
+    g2m.genes <- seurat_mouse_orth$mmus_g2m
+    gse_seurat <- as.Seurat(emtab_sce)
+    gse_seurat <- NormalizeData(gse_seurat)
+    gse_seurat <- FindVariableFeatures(gse_seurat, selection.method = "vst")
+    gse_seurat <- ScaleData(gse_seurat, features = rownames(gse_seurat))
+    gse_seurat <- RunPCA(gse_seurat, features = VariableFeatures(gse_seurat), ndims.print = 6:10, nfeatures.print = 10)
+    gse_seurat <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    print(table(gse_seurat[[]]$Phase, gse_seurat[[]]$orig.ident))
 }
+classify_gse_42268()
 
 validate_gse_42268 <- function() {
     gse_sce <- format_gse_42268()
@@ -199,7 +200,7 @@ wilcox_gse_42268 <- function() {
 
     # get ensemble_ids
     counts <- read.table(
-        str_interp("./jackData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
+        str_interp("./benchmarkData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
         header = TRUE
     )
     ensemble_ids <- counts$id
@@ -207,7 +208,7 @@ wilcox_gse_42268 <- function() {
     # get list of files
     files <- list.files(
         path =
-            "./jackData/GSE42268/GSE42268_RAW",
+            "./benchmarkData/GSE42268/GSE42268_RAW",
         pattern = ".*.txt"
     )
 
@@ -234,7 +235,7 @@ wilcox_gse_42268 <- function() {
 
                 # get values for the file
                 counts <- read.table(
-                    str_interp("./jackData/GSE42268/GSE42268_RAW/${file}"),
+                    str_interp("./benchmarkData/GSE42268/GSE42268_RAW/${file}"),
                     header = TRUE
                 )
 
@@ -270,7 +271,7 @@ wilcox_fast_gse_42268 <- function() {
 
     # set row names to ensemble ids
     counts <- read.table(
-        str_interp("./jackData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
+        str_interp("./benchmarkData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
         header = TRUE
     )
     ensemble_ids <- counts$id
@@ -279,7 +280,7 @@ wilcox_fast_gse_42268 <- function() {
     # set columns with fpkms
     files <- list.files(
         path =
-            "./jackData/GSE42268/GSE42268_RAW",
+            "./benchmarkData/GSE42268/GSE42268_RAW",
         pattern = ".*.txt"
     )
 
@@ -299,7 +300,7 @@ wilcox_fast_gse_42268 <- function() {
         gsm <- substr(file, 1, 10)
         if (is.element(gsm, gsms)) {
             counts_data <- read.table(
-                str_interp("./jackData/GSE42268/GSE42268_RAW/${file}"),
+                str_interp("./benchmarkData/GSE42268/GSE42268_RAW/${file}"),
                 header = TRUE
             )
             counts_data <- subset(counts_data,
@@ -363,14 +364,12 @@ format_emtab_2805 <- function() {
     emtab_2805_file <- function(file_name) {
         # get values
         counts <- read.table(
-            str_interp("./jackData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"),
+            str_interp("./benchmarkData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"),
             header = TRUE
         )
         counts$AssociatedGeneName <- toupper(counts$AssociatedGeneName)
         counts <- counts[!duplicated(counts$AssociatedGeneName), ]
         counts <- na.omit(counts)
-
-
 
         # set rownames
         rownames(counts) <- counts$AssociatedGeneName
@@ -425,21 +424,21 @@ format_emtab_2805 <- function() {
     return(emtab_2805_res)
 }
 
-classify_emtab_2805() <- function() {
-    emtab_sce <- format_emtab_2805()
-    # s.genes <- cc.genes$s.genes
-    # g2m.genes <- cc.genes$g2m.genes
-    # print(s.genes)
-    # emtab_2805_seurat <- as.Seurat(emtab_2805_output)
-    # emtab_2805_seurat <- NormalizeData(emtab_2805_seurat)
-    # emtab_2805_seurat <- FindVariableFeatures(emtab_2805_seurat, selection.method = "vst")
-    # emtab_2805_seurat <- ScaleData(emtab_2805_seurat, features = rownames(emtab_2805_seurat))
-    # emtab_2805_seurat <- RunPCA(emtab_2805_seurat, features = VariableFeatures(emtab_2805_seurat), ndims.print = 6:10, nfeatures.print = 10)
-    # CellCycleScoring(emtab_2805_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-    # look at changing the ensemble gene names to the gene symbols
+classify_emtab_2805 <- function() {
+    cat("===EMTAB 2805 CycleMix===\n")
+    emtab_sce <<- format_emtab_2805()
+    emtab_cm <<- classifyCells(emtab_sce, HGeneSets$Tirosh)
+    print(table(factor(emtab_cm$phase), emtab_sce$cell_type1))
 
-    # emtab_2805_classified <- classifyCells(emtab_2805_output, MGeneSets$Cyclone)
-    # summary(factor(emtab_2805_classified$phase))
-    # table(factor(emtab_2805_classified$phase), emtab_2805_output$cell_type1)
-    # plotMixture(emtab_2805_classified$fit[["G2M"]], BIC = TRUE)
+    cat("===EMTAB 2805 Seurat===\n")
+    s.genes <- cc.genes$s.genes
+    g2m.genes <- cc.genes$g2m.genes
+    emtab_seurat <- as.Seurat(emtab_sce)
+    emtab_seurat <- NormalizeData(emtab_seurat)
+    emtab_seurat <- FindVariableFeatures(emtab_seurat, selection.method = "vst")
+    emtab_seurat <- ScaleData(emtab_seurat, features = rownames(emtab_seurat))
+    emtab_seurat <- RunPCA(emtab_seurat, features = VariableFeatures(emtab_seurat), ndims.print = 6:10, nfeatures.print = 10)
+    emtab_seurat <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    print(table(emtab_seurat[[]]$Phase, emtab_seurat[[]]$orig.ident))
 }
+classify_emtab_2805()
