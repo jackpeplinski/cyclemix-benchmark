@@ -137,8 +137,8 @@ classify_gse_42268 <- function() {
 
     cat("====GSE 42268 CycleMix====\n")
     seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
-    s.genes <- seurat_mouse_orth$mmus_s
-    g2m.genes <- seurat_mouse_orth$mmus_g2m
+    s.genes <- unlist(lapply(seurat_mouse_orth$mmus_s, toupper))
+    g2m.genes <- unlist(lapply(seurat_mouse_orth$mmus_g2m, toupper))
     gse_seurat <- as.Seurat(emtab_sce)
     gse_seurat <- NormalizeData(gse_seurat)
     gse_seurat <- FindVariableFeatures(gse_seurat, selection.method = "vst")
