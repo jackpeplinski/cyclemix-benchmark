@@ -11,6 +11,54 @@ GSE42268 Dataset Notes:
 - Round fpkm for counts
 - Put fpkm into the logcounts
 "
+format_data <- function() {
+    data <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
+
+    phase <- c("S")
+
+    # Determine the number of rows in the data frame
+    num_rows <- length(data$mmus_s)
+
+    # Repeat the phase values to match the number of rows
+    phase <- rep_len(phase, num_rows)
+
+    # Combine the columns using cbind()
+    result <- cbind(data$mmus_s, phase)
+
+    # Convert the result to a data frame
+    result <- as.data.frame(result)
+
+    # Assign column names
+    colnames(result) <- c("Gene", "Stage")
+
+    ##### Phase 2
+    phase <- c("G2M")
+
+    # Determine the number of rows in the data frame
+    num_rows <- length(data$mmus_g2m)
+
+    # Repeat the phase values to match the number of rows
+    phase <- rep_len(phase, num_rows)
+
+    # Combine the columns using cbind()
+    result2 <- cbind(data$mmus_g2m, phase)
+
+    # Convert the result to a data frame
+    result2 <- as.data.frame(result2)
+
+    # Assign column names
+    colnames(result2) <- c("Gene", "Stage")
+
+    results <- rbind(result, result2)
+    results$Gene <- toupper(results$Gene)
+    results$Dir <- 1
+    results$Gene <- as.factor(results$Gene)
+    results$Stage <- as.factor(results$Stage)
+    return(results)
+}
+MSeuratGeneSet <- format_data()
+
+
 format_gse_42268 <- function() {
     # counts should have a structure like:
     # row.name                 gsmcellname
@@ -129,13 +177,13 @@ format_gse_42268 <- function() {
 }
 
 classify_gse_42268 <- function() {
-    cat("===GSE 42268 CycleMix===\n")
-    gse_sce <<- format_gse_42268()
-    gse_cm <<- classifyCells(gse_sce, MGeneSets$Cyclone)
-    # gse_classified <- classifyCells(gse_sce, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
-    print(table(factor(gse_cm$phase), gse_sce$cell_type1))
+    # cat("===GSE 42268 CycleMix===\n")
+    # gse_sce <<- format_gse_42268()
+    # gse_cm <<- classifyCells(gse_sce, MGeneSets$Cyclone)
+    # # gse_classified <- classifyCells(gse_sce, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
+    # print(table(factor(gse_cm$phase), gse_sce$cell_type1))
 
-    cat("====GSE 42268 CycleMix====\n")
+    cat("====GSE 42268 Seurat====\n")
     seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
     s.genes <- unlist(lapply(seurat_mouse_orth$mmus_s, toupper))
     g2m.genes <- unlist(lapply(seurat_mouse_orth$mmus_g2m, toupper))
@@ -147,7 +195,7 @@ classify_gse_42268 <- function() {
     gse_seurat <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(gse_seurat[[]]$Phase, gse_seurat[[]]$orig.ident))
 }
-classify_gse_42268()
+# classify_gse_42268()
 
 validate_gse_42268 <- function() {
     gse_sce <- format_gse_42268()
@@ -425,14 +473,18 @@ format_emtab_2805 <- function() {
 }
 
 classify_emtab_2805 <- function() {
-    cat("===EMTAB 2805 CycleMix===\n")
+    cat("===EMTAB 2805===\n")
+    cat("===CycleMix===\n")
     emtab_sce <<- format_emtab_2805()
-    emtab_cm <<- classifyCells(emtab_sce, HGeneSets$Tirosh)
-    print(table(factor(emtab_cm$phase), emtab_sce$cell_type1))
+    emtab_cm_cy <<- classifyCells(emtab_sce, MGeneSets$Cyclone)
+    print(table(factor(emtab_cm_cy$phase), emtab_sce$cell_type1))
+    emtab_cm_se <<- classifyCells(emtab_sce, MSeuratGeneSet)
+    print(table(factor(emtab_cm_se$phase), emtab_sce$cell_type1))
 
-    cat("===EMTAB 2805 Seurat===\n")
-    s.genes <- cc.genes$s.genes
-    g2m.genes <- cc.genes$g2m.genes
+    cat("===Seurat===\n")
+    seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
+    s.genes <- unlist(lapply(seurat_mouse_orth$mmus_s, toupper))
+    g2m.genes <- unlist(lapply(seurat_mouse_orth$mmus_g2m, toupper))
     emtab_seurat <- as.Seurat(emtab_sce)
     emtab_seurat <- NormalizeData(emtab_seurat)
     emtab_seurat <- FindVariableFeatures(emtab_seurat, selection.method = "vst")
