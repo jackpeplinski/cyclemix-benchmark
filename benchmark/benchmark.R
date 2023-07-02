@@ -3,6 +3,8 @@ require("scater")
 require("CycleMix")
 require("stringr")
 library("Seurat")
+library("biomaRt")
+library("org.Mm.eg.db")
 
 "
 GSE42268 Dataset Notes:
@@ -50,19 +52,35 @@ format_data <- function() {
     colnames(result2) <- c("Gene", "Stage")
 
     results <- rbind(result, result2)
-    results$Gene <- toupper(results$Gene)
+    results$Gene <- results$Gene
     results$Dir <- 1
     results$Gene <- as.factor(results$Gene)
     results$Stage <- as.factor(results$Stage)
-    return(results)
+
+    ensembl <- useMart(biomart = "ensembl", dataset = "mmusculus_gene_ensembl")
+
+    ensembl_ids <- getBM(
+        attributes = c("ensembl_gene_id", "external_gene_name"),
+        filters = "external_gene_name",
+        values = results$Gene,
+        mart = ensembl
+    )
+    ensembl_ids$external_gene_name <- ensembl_ids$external_gene_name
+
+    merged_df <- merge(results, ensembl_ids, by.x = "Gene", by.y = "external_gene_name", all.x = TRUE)
+
+    rownames(merged_df) <- merged_df$ensembl_gene_id
+
+    merged_df <- subset(merged_df, select = -ensembl_gene_id)
+    return(merged_df)
 }
 MSeuratGeneSet <- format_data()
-
+seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
 
 format_gse_42268 <- function() {
     # counts should have a structure like:
     # row.name                 gsmcellname
-    # ENSMUSG00000000049       [fpkm]
+    #                          [fpkm]
 
     # load counts info; doesn't matter which file, could be any
     counts <- read.table(
@@ -105,7 +123,6 @@ format_gse_42268 <- function() {
 
     # for each file
     for (file in files) {
-
         # if the file name matches the col_data
         gsm <- substr(file, 1, 10)
         if (is.element(gsm, col_data_xml$gsm)) {
@@ -117,7 +134,6 @@ format_gse_42268 <- function() {
 
             # format the data
             format_counts <- function(count_type) {
-
                 # round data if counts
                 if (count_type == "counts") {
                     data <- data.frame(
@@ -152,8 +168,7 @@ format_gse_42268 <- function() {
             # the phases of cells
             col_data <- DataFrame(
                 row.names = col_data_xml$gsm,
-                Species = factor("Mus musculus"),
-                cell_type1 = col_data_xml$cell_type1
+                cell_type1 = factor(col_data_xml$cell_type1)
             )
             # verify that the correct phase is matched
             # print(col_data["GSM1036531", ])
@@ -173,40 +188,71 @@ format_gse_42268 <- function() {
     libsizes <- colSums(logcounts)
     size.factors <- libsizes / mean(libsizes)
     logcounts(sce) <- log2(t(t(logcounts)) + 1)
+
+    # because this for some reason isn't working with ensembleids, remove the duplicates and use gene idsa
+    df <- rowData(sce)
+    duplicated_rows <- which(duplicated(df$feature_symbol))
+    row_names <- df[-duplicated_rows, ]
+    counts <- assays(sce)$counts[-duplicated_rows, ]
+    row.names(counts) <- row_names
+    logcounts <- assays(sce)$logcounts[-duplicated_rows, ]
+    row.names(logcounts) <- row_names
+    row_data <- DataFrame(
+        row.names = row_names,
+        feature_symbol = factor(row_names)
+    )
+    col_data <- as.data.frame(colData(sce))[, , FALSE]
+    col_data <- DataFrame(
+        row.names = rownames(col_data),
+        cell_type1 = factor(col_data$cell_type1)
+    )
+
+    sce <- SingleCellExperiment(
+        assays = list(counts = counts, logcounts = logcounts),
+        colData = col_data,
+        rowData = row_data
+    )
+
     return(sce)
 }
 
 classify_gse_42268 <- function() {
-    # cat("===GSE 42268 CycleMix===\n")
-    # gse_sce <<- format_gse_42268()
-    # gse_cm <<- classifyCells(gse_sce, MGeneSets$Cyclone)
-    # # gse_classified <- classifyCells(gse_sce, subset(MGeneSets$Cyclone, Dir == 1)) # colData(gse_output)[50,] to view df with G2/M
-    # print(table(factor(gse_cm$phase), gse_sce$cell_type1))
+    gse_sce <<- format_gse_42268()
+    cat("===GSE 42268 | CycleMix | MGeneSets$Cyclone===\n")
+    gse_cm_cy <<- classifyCells(gse_sce, MGeneSets$Cyclone)
+    print(table(factor(gse_cm_cy$phase), gse_sce$cell_type1))
+    cat("======GSE 42268 | CycleMix | MSeuratGeneSet===\n")
+    gse_cm_se <<- classifyCells(gse_sce, MSeuratGeneSet)
+    print(table(factor(gse_cm_se$phase), gse_sce$cell_type1))
 
-    cat("====GSE 42268 Seurat====\n")
-    seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
-    s.genes <- unlist(lapply(seurat_mouse_orth$mmus_s, toupper))
-    g2m.genes <- unlist(lapply(seurat_mouse_orth$mmus_g2m, toupper))
-    gse_seurat <- as.Seurat(emtab_sce)
+    gse_seurat <- as.Seurat(gse_sce)
     gse_seurat <- NormalizeData(gse_seurat)
     gse_seurat <- FindVariableFeatures(gse_seurat, selection.method = "vst")
     gse_seurat <- ScaleData(gse_seurat, features = rownames(gse_seurat))
-    gse_seurat <- RunPCA(gse_seurat, features = VariableFeatures(gse_seurat), ndims.print = 6:10, nfeatures.print = 10)
-    gse_seurat <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-    print(table(gse_seurat[[]]$Phase, gse_seurat[[]]$orig.ident))
+    gse_seurat <<- RunPCA(gse_seurat, features = VariableFeatures(gse_seurat), ndims.print = 6:10, nfeatures.print = 10)
+    cat("===GSE 42268 | Seurat | MGeneSets$Cyclone===\n")
+    s.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "S"]
+    g2m.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "G2M"]
+    gse_seurat_cy <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    print(table(gse_seurat_cy[[]]$Phase, gse_seurat[[]]$cell_type1))
+    cat("======GSE 42268 | Seurat | MSeuratGeneSet===\n")
+    s.genes <- seurat_mouse_orth$mmus_s
+    g2m.genes <- seurat_mouse_orth$mmus_g2m
+    gse_seurat_se <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    print(table(gse_seurat_se[[]]$Phase, gse_seurat[[]]$cell_type1))
 }
-# classify_gse_42268()
+classify_gse_42268()
 
 validate_gse_42268 <- function() {
-    gse_sce <- format_gse_42268()
+    sce <- format_gse_42268()
     invalid_row_counts <- c()
-    for (i in colnames(logcounts(gse_sce))) { # names of files
-        # print(colnames(logcounts(gse_sce)))
+    for (i in colnames(logcounts(sce))) { # names of files
+        # print(colnames(logcounts(sce)))
         invalid_row_count <- 0
         # if (i == "GSM1036501") {
-        #     print(logcounts(gse_sce)[i])
+        #     print(logcounts(sce)[i])
         # }
-        file_log_counts <- logcounts(gse_sce)[i]
+        file_log_counts <- logcounts(sce)[i]
         # print(colnames(fileLogCounts))
         colnames(file_log_counts)
 
@@ -268,7 +314,6 @@ wilcox_gse_42268 <- function() {
 
     # for each id
     for (ensemble_id in ensemble_ids) {
-
         # if the element is in Cyclone set
         if (is.element(ensemble_id, rownames(MGeneSets$Cyclone))) {
             g2m <- c()
@@ -277,7 +322,6 @@ wilcox_gse_42268 <- function() {
 
             # for each file
             for (file in files) {
-
                 # get the file name
                 gsm <- substr(file, 1, 10)
 
@@ -415,7 +459,7 @@ format_emtab_2805 <- function() {
             str_interp("./benchmarkData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"),
             header = TRUE
         )
-        counts$AssociatedGeneName <- toupper(counts$AssociatedGeneName)
+        counts$AssociatedGeneName <- counts$AssociatedGeneName
         counts <- counts[!duplicated(counts$AssociatedGeneName), ]
         counts <- na.omit(counts)
 
@@ -473,34 +517,29 @@ format_emtab_2805 <- function() {
 }
 
 classify_emtab_2805 <- function() {
-    cat("===EMTAB 2805===\n")
-    cat("===CycleMix===\n")
+    cat("===EMTAB 2805 | CycleMix | MGeneSets$Cyclone===\n")
     emtab_sce <<- format_emtab_2805()
-    cat("===MGeneSets$Cyclone===")
     emtab_cm_cy <<- classifyCells(emtab_sce, MGeneSets$Cyclone)
     print(table(factor(emtab_cm_cy$phase), emtab_sce$cell_type1))
-    cat("===MSeuratGeneSet===")
+    cat("===EMTAB 2805 | CycleMix | MSeuratGeneSet===\n")
     emtab_cm_se <<- classifyCells(emtab_sce, MSeuratGeneSet)
-    print(table(factor(emtab_cm_se$phase), emtab_sce$cell_type1))
+    emtab_cm_se_table <- table(factor(emtab_cm_se$phase), emtab_sce$cell_type1)
+    print(emtab_cm_se_table)
 
-    cat("===Seurat===\n")
     emtab_seurat <- as.Seurat(emtab_sce)
     emtab_seurat <- NormalizeData(emtab_seurat)
     emtab_seurat <- FindVariableFeatures(emtab_seurat, selection.method = "vst")
     emtab_seurat <- ScaleData(emtab_seurat, features = rownames(emtab_seurat))
-    emtab_seurat <- RunPCA(emtab_seurat, features = VariableFeatures(emtab_seurat), ndims.print = 6:10, nfeatures.print = 10)
-    cat("===MGeneSets$Cyclone===\n")
+    emtab_seurat <<- RunPCA(emtab_seurat, features = VariableFeatures(emtab_seurat), ndims.print = 6:10, nfeatures.print = 10)
+    cat("===EMTAB 2805 | Seurat | MGeneSets$Cyclone===\n")
     s.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "S"]
-    s.genes <- toupper(s.genes)
     g2m.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "G2M"]
-    g2m.genes <- toupper(g2m.genes)
-    emtab_seurat_se <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-    print(table(emtab_seurat_se[[]]$Phase, emtab_seurat[[]]$orig.ident))
-    cat("===MSeuratGeneSet===\n")
-    seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
-    s.genes <- unlist(lapply(seurat_mouse_orth$mmus_s, toupper))
-    g2m.genes <- unlist(lapply(seurat_mouse_orth$mmus_g2m, toupper))
     emtab_seurat_cy <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(emtab_seurat_cy[[]]$Phase, emtab_seurat[[]]$orig.ident))
+    cat("===EMTAB 2805 | Seurat | MSeuratGeneSet===\n")
+    s.genes <- seurat_mouse_orth$mmus_s
+    g2m.genes <- seurat_mouse_orth$mmus_g2m
+    emtab_seurat_se <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    print(table(emtab_seurat_se[[]]$Phase, emtab_seurat[[]]$orig.ident))
 }
 classify_emtab_2805()
