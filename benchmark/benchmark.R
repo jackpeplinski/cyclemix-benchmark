@@ -74,8 +74,8 @@ format_data <- function() {
     merged_df <- subset(merged_df, select = -ensembl_gene_id)
     return(merged_df)
 }
-MSeuratGeneSet <- format_data()
-seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
+# MSeuratGeneSet <- format_data()
+# seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
 
 format_gse_42268 <- function() {
     # counts should have a structure like:
@@ -213,7 +213,88 @@ format_gse_42268 <- function() {
         rowData = row_data
     )
 
+    # create synthetic data
+    synth <- synthesize_gse_42268(sce)
+    synth_df <- as.data.frame(synth)
+    # sce <- SingleCellExperiment(
+    #     assays = list(counts = synth_df),
+    #     colData = col_data,
+    #     rowData = row_data
+    # )
+    # libsizes <- colSums(synth)
+    # size.factors <- libsizes / mean(libsizes)
+    # logcounts(sce) <- log2(t(t(synth)) + 1)
     return(sce)
+}
+
+synthesize_gse_42268 <- function(sce) {
+    g1_cells <- colnames(sce)[colData(sce)$cell_type1 == "G1"]
+
+    g1_df <- assays(sce)$counts[, g1_cells]
+
+    g1_synth <- average_phase_df(g1_df)
+
+    s_cells <- colnames(sce)[colData(sce)$cell_type1 == "S"]
+
+    s_df <- assays(sce)$counts[, s_cells]
+
+    s_synth <- average_phase_df(s_df)
+
+    g2_cells <- colnames(sce)[colData(sce)$cell_type1 == "G2/M"]
+
+    g2_df <- assays(sce)$counts[, g2_cells]
+
+    g2_synth <- average_phase_df(g2_df)
+
+    # look at cbind (same number of rows in same order), try not using merge
+    # look at using matrix if data is the same type; capital data frame is different from lower case dataframe
+    return(list("g1" = g1_synth, "s" = s_synth, "g2" = g2_synth))
+}
+
+average_phase_df <- function(phase_df) {
+    n <- ncol(phase_df)
+    synthetic_cells <- data.frame(matrix(NA, nrow = nrow(phase_df), ncol = 0))
+
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            col1 <- phase_df[, i]
+            col2 <- phase_df[, j]
+            col_name <- paste(colnames(phase_df)[i], "-", colnames(phase_df)[j], sep = "")
+            synthetic_cells[[col_name]] <- rowMeans(cbind(col1, col2))
+        }
+    }
+
+    return(synthetic_cells)
+}
+
+# Function to calculate the average of two adjacent columns
+average_of_adjacent <- function(df) {
+    # Determine the number of columns
+    num_cols <- ncol(df)
+
+    # Check if the number of columns is odd, and if so, remove the last column
+    if (num_cols %% 2 != 0) {
+        num_cols <- num_cols - 1
+        df <- df[, -num_cols]
+    }
+
+    new_df <- df
+    for (column_i in 1:num_cols) {
+        # add columns by putting square brackets with the column name
+        average <- as.data.frame(rowMeans(s_df[, c(column_i, column_i + 1)]))
+        new_df <- rbind(new_df, average)
+    }
+
+    # Calculate the average of two adjacent columns and store in a new dataframe
+    new_df <- as.data.frame(matrix(rowMeans(matrix(df, ncol = 2, byrow = TRUE)), ncol = (num_cols / 2)))
+
+    # Generate a header for the new column (e.g., "Avg_GSM1_GSM2")
+    col_header <- paste("Avg", colnames(df)[seq(1, num_cols, 2)], colnames(df)[seq(2, num_cols, 2)], sep = "_")
+
+    # Set the new column header
+    colnames(new_df) <- col_header
+
+    return(new_df)
 }
 
 classify_gse_42268 <- function() {
@@ -241,7 +322,7 @@ classify_gse_42268 <- function() {
     gse_seurat_se <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(gse_seurat_se[[]]$Phase, gse_seurat[[]]$cell_type1))
 }
-classify_gse_42268()
+# classify_gse_42268()
 
 validate_gse_42268 <- function() {
     sce <- format_gse_42268()
@@ -542,4 +623,4 @@ classify_emtab_2805 <- function() {
     emtab_seurat_se <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(emtab_seurat_se[[]]$Phase, emtab_seurat[[]]$orig.ident))
 }
-classify_emtab_2805()
+# classify_emtab_2805()
