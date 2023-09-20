@@ -214,41 +214,35 @@ format_gse_42268 <- function() {
     )
 
     # create synthetic data
-    synth <- synthesize_gse_42268(sce)
-    synth_df <- as.data.frame(synth)
-    # sce <- SingleCellExperiment(
-    #     assays = list(counts = synth_df),
-    #     colData = col_data,
-    #     rowData = row_data
-    # )
-    # libsizes <- colSums(synth)
-    # size.factors <- libsizes / mean(libsizes)
-    # logcounts(sce) <- log2(t(t(synth)) + 1)
-    return(sce)
+    synth_g1 <- synthesize_gse_42268(sce, "G1")
+    synth_g2 <- synthesize_gse_42268(sce, "G2/M")
+    synth_s <- synthesize_gse_42268(sce, "S")
+    g1_names <- colnames(synth_g1)
+    g2_names <- colnames(synth_g2)
+    s_names <- colnames(synth_s)
+    combined <- cbind(synth_g1, synth_g2, synth_s)
+
+    sceMix <- SingleCellExperiment(
+        assays = list(counts = combined),
+        colData = DataFrame(
+            row.names = c(g1_names, g2_names, s_names),
+            cell_type1 = factor(c(rep("G1", length(g1_names)), rep("G2/M", length(g2_names)), rep("S", length(
+                s_names
+            ))))
+        ),
+        rowData = row_data
+    )
+    libsizes <- colSums(combined)
+    size.factors <- libsizes / mean(libsizes)
+    logcounts(sceMix) <- log2(t(t(combined)) + 1)
+    return(sceMix)
 }
 
-synthesize_gse_42268 <- function(sce) {
-    g1_cells <- colnames(sce)[colData(sce)$cell_type1 == "G1"]
-
-    g1_df <- assays(sce)$counts[, g1_cells]
-
-    g1_synth <- average_phase_df(g1_df)
-
-    s_cells <- colnames(sce)[colData(sce)$cell_type1 == "S"]
-
-    s_df <- assays(sce)$counts[, s_cells]
-
-    s_synth <- average_phase_df(s_df)
-
-    g2_cells <- colnames(sce)[colData(sce)$cell_type1 == "G2/M"]
-
-    g2_df <- assays(sce)$counts[, g2_cells]
-
-    g2_synth <- average_phase_df(g2_df)
-
-    # look at cbind (same number of rows in same order), try not using merge
-    # look at using matrix if data is the same type; capital data frame is different from lower case dataframe
-    return(list("g1" = g1_synth, "s" = s_synth, "g2" = g2_synth))
+synthesize_gse_42268 <- function(sce, cell_type) {
+    cells <- colnames(sce)[colData(sce)$cell_type1 == cell_type]
+    phase_df <- assays(sce)$counts[, cells]
+    synth <- average_phase_df(phase_df)
+    return(synth)
 }
 
 average_phase_df <- function(phase_df) {
@@ -264,7 +258,7 @@ average_phase_df <- function(phase_df) {
         }
     }
 
-    return(synthetic_cells)
+    return(cbind(synthetic_cells, phase_df))
 }
 
 # Function to calculate the average of two adjacent columns
