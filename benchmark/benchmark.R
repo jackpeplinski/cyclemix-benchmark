@@ -74,8 +74,8 @@ format_data <- function() {
     merged_df <- subset(merged_df, select = -ensembl_gene_id)
     return(merged_df)
 }
-# MSeuratGeneSet <- format_data()
-# seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
+MSeuratGeneSet <- format_data()
+seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
 
 format_gse_42268 <- function() {
     # counts should have a structure like:
