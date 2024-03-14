@@ -58,6 +58,20 @@ for (file_path in file_paths) {
 
 }
 
+seurat_data <- readRDS(file_path)
+s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
+s.genes <- convert_to_ensembl(as.character(s.genes))
+g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
+g2m.genes <- convert_to_ensembl(as.character(g2m.genes))
+seurat_cy <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+
+sce_data <- as.SingleCellExperiment(seurat_data)
+rownames(sce_data) <- convert_to_symbols(rownames(sce_data))
+sce_data <- sce_data[!is.na(rownames(sce_data)), ]
+sce_data <- sce_data[!duplicated(rownames(sce_data)), ]
+rowData_sce_data <- DataFrame(feature_symbol = factor(rownames(sce_data)))
+rowData(sce_data) <- rowData_sce_data
+output <<- classifyCells(sce_data, HGeneSets$Whitfield)
 
 simpsonIndexSeurat <- function() {
     cell_type <- seurat_cy@meta.data$cell_type
