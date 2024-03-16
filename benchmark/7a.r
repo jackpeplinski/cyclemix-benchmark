@@ -6,14 +6,16 @@ source("R/Analysis.R") # load after cyclemix
 require("stringr")
 library("Seurat")
 library("biomaRt")
+library("tidyverse")
 library("org.Mm.eg.db")
 library("AnnotationDbi")
 library("org.Hs.eg.db")
+library(ggplot2)
 options(max.print = 20)
 
 convert_to_ensembl <- function(gene_symbols) {
     # Convert gene symbols to Ensembl IDs
-    ensembl_ids_df <- select(org.Hs.eg.db, keys = gene_symbols, columns = "ENSEMBL", keytype = "SYMBOL")
+    ensembl_ids_df <- AnnotationDbi::select(org.Hs.eg.db, keys = gene_symbols, columns = "ENSEMBL", keytype = "SYMBOL")
 
     # Remove rows with NA ENSEMBL
     ensembl_ids_df <- ensembl_ids_df[!is.na(ensembl_ids_df$ENSEMBL), ]
@@ -32,7 +34,7 @@ convert_to_ensembl <- function(gene_symbols) {
 
 convert_to_symbols <- function(ensembl_ids) {
     # Convert Ensembl IDs to gene symbols
-    gene_symbols_df <- select(org.Hs.eg.db, keys = ensembl_ids, columns = "SYMBOL", keytype = "ENSEMBL")
+    gene_symbols_df <- AnnotationDbi::select(org.Hs.eg.db, keys = ensembl_ids, columns = "SYMBOL", keytype = "ENSEMBL")
 
     # If there are multiple SYMBOLs for a single ENSEMBL, keep the first one
     gene_symbols_df <- gene_symbols_df[!duplicated(gene_symbols_df$ENSEMBL), ]
@@ -46,34 +48,7 @@ convert_to_symbols <- function(ensembl_ids) {
     return(gene_symbols)
 }
 
-file_paths <- c(
-    "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
-)
-
-for (file_path in file_paths) {
-
-}
-
-seurat_data <- readRDS(file_path)
-s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
-s.genes <- convert_to_ensembl(as.character(s.genes))
-g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
-g2m.genes <- convert_to_ensembl(as.character(g2m.genes))
-seurat_cy <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-
-sce_data <- as.SingleCellExperiment(seurat_data)
-rownames(sce_data) <- convert_to_symbols(rownames(sce_data))
-sce_data <- sce_data[!is.na(rownames(sce_data)), ]
-sce_data <- sce_data[!duplicated(rownames(sce_data)), ]
-rowData_sce_data <- DataFrame(feature_symbol = factor(rownames(sce_data)))
-rowData(sce_data) <- rowData_sce_data
-output <<- classifyCells(sce_data, HGeneSets$Whitfield)
-
-simpsonIndexSeurat <- function() {
+simpsonIndexSeurat <- function(seurat_cy) {
     cell_type <- seurat_cy@meta.data$cell_type
     phase <- seurat_cy$Phase
     cell_type_and_phase_df <- data.frame(cell_type, phase)
@@ -82,6 +57,7 @@ simpsonIndexSeurat <- function() {
     cell_type_and_phase_squared_percentages <- cell_type_and_phase_percent^2
     sum_of_squares_by_cell_type <- rowSums(cell_type_and_phase_squared_percentages)
     simpson_indices <- 1 - sum_of_squares_by_cell_type
+    return(simpson_indices)
 }
 
 simpsonIndexSCE <- function(sce_data, output) {
@@ -94,4 +70,51 @@ simpsonIndexSCE <- function(sce_data, output) {
     sum_of_squares_by_cell_type <- rowSums(cell_type_and_phase_squared_percentages)
     simpson_indices <- 1 - sum_of_squares_by_cell_type
     return(simpson_indices)
+}
+
+file_paths <- c(
+    "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
+)
+
+# file_path = "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
+
+for (file_path in file_paths) {
+    seurat_data <- readRDS(file_path)
+    s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
+    s.genes <- convert_to_ensembl(as.character(s.genes))
+    g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
+    g2m.genes <- convert_to_ensembl(as.character(g2m.genes))
+    seurat_cy <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+
+    sce_data <- as.SingleCellExperiment(seurat_data)
+    rownames(sce_data) <- convert_to_symbols(rownames(sce_data))
+    sce_data <- sce_data[!is.na(rownames(sce_data)), ]
+    sce_data <- sce_data[!duplicated(rownames(sce_data)), ]
+    rowData_sce_data <- DataFrame(feature_symbol = factor(rownames(sce_data)))
+    rowData(sce_data) <- rowData_sce_data
+    subsettedHGeneSets <- HGeneSets$Whitfield[HGeneSets$Whitfield$Stage %in% c("S", "G2M"), ]
+    output <- classifyCells(sce_data, subsettedHGeneSets)
+
+    # Assume simpsonIndexSeurat and simpsonIndexSCE are the results from the respective functions
+    # Convert them to data frames
+    df <- as.data.frame(cbind(simpsonIndexSCE = simpsonIndexSCE(sce_data, output), simpsonIndexSeurat = simpsonIndexSeurat(seurat_cy)))
+
+    # Reshape the data to long format
+    df_long <- df %>%
+        rownames_to_column(var = "cell_type") %>%
+        pivot_longer(
+            cols = c(simpsonIndexSCE, simpsonIndexSeurat),
+            names_to = "source",
+            values_to = "simpson"
+        )
+
+    # Create the side-by-side bar plot
+    print(ggplot(df_long, aes(x = cell_type, y = simpson, fill = source)) +
+        geom_bar(stat = "identity", position = "dodge") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        labs(x = "Cell Type", y = "Simpson Index", fill = "Source"))
 }
