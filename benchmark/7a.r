@@ -60,7 +60,7 @@ simpsonIndexSeurat <- function(seurat_cy) {
     cell_type_and_phase_percent <- prop.table(cell_type_and_phase_table, 1)
     cell_type_and_phase_squared_percentages <- cell_type_and_phase_percent^2
     sum_of_squares_by_cell_type <- rowSums(cell_type_and_phase_squared_percentages)
-    simpson_indices <- 1 - sum_of_squares_by_cell_type
+    simpson_indices <- sum_of_squares_by_cell_type
     return(simpson_indices)
 }
 
@@ -72,7 +72,7 @@ simpsonIndexSCE <- function(sce_data, output) {
     cell_type_and_phase_percent <- prop.table(cell_type_and_phase_table, 1)
     cell_type_and_phase_squared_percentages <- cell_type_and_phase_percent^2
     sum_of_squares_by_cell_type <- rowSums(cell_type_and_phase_squared_percentages)
-    simpson_indices <- 1 - sum_of_squares_by_cell_type
+    simpson_indices <- sum_of_squares_by_cell_type
     return(simpson_indices)
 }
 
