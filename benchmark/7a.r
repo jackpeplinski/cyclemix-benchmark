@@ -15,7 +15,9 @@ options(max.print = 20)
 
 convert_to_ensembl <- function(gene_symbols) {
     # Convert gene symbols to Ensembl IDs
-    ensembl_ids_df <- AnnotationDbi::select(org.Hs.eg.db, keys = gene_symbols, columns = "ENSEMBL", keytype = "SYMBOL")
+    ensembl_ids_df <- suppressMessages(suppressWarnings(
+        AnnotationDbi::select(org.Hs.eg.db, keys = gene_symbols, columns = "ENSEMBL", keytype = "SYMBOL")
+    ))
 
     # Remove rows with NA ENSEMBL
     ensembl_ids_df <- ensembl_ids_df[!is.na(ensembl_ids_df$ENSEMBL), ]
@@ -34,7 +36,9 @@ convert_to_ensembl <- function(gene_symbols) {
 
 convert_to_symbols <- function(ensembl_ids) {
     # Convert Ensembl IDs to gene symbols
-    gene_symbols_df <- AnnotationDbi::select(org.Hs.eg.db, keys = ensembl_ids, columns = "SYMBOL", keytype = "ENSEMBL")
+    gene_symbols_df <- suppressMessages(suppressWarnings(
+        AnnotationDbi::select(org.Hs.eg.db, keys = ensembl_ids, columns = "SYMBOL", keytype = "ENSEMBL")
+    ))
 
     # If there are multiple SYMBOLs for a single ENSEMBL, keep the first one
     gene_symbols_df <- gene_symbols_df[!duplicated(gene_symbols_df$ENSEMBL), ]
@@ -82,7 +86,9 @@ file_paths <- c(
 
 # file_path = "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
 
-for (file_path in file_paths) {
+for (i in seq_along(file_paths)) {
+    file_path <- file_paths[i]
+    print(file_path)
     seurat_data <- readRDS(file_path)
     s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
     s.genes <- convert_to_ensembl(as.character(s.genes))
@@ -113,8 +119,10 @@ for (file_path in file_paths) {
         )
 
     # Create the side-by-side bar plot
-    print(ggplot(df_long, aes(x = cell_type, y = simpson, fill = source)) +
+    p <- ggplot(df_long, aes(x = cell_type, y = simpson, fill = source)) +
         geom_bar(stat = "identity", position = "dodge") +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        labs(x = "Cell Type", y = "Simpson Index", fill = "Source"))
+        labs(x = "Cell Type", y = "Simpson Index", fill = "Source")
+    print(p)
+    ggsave(paste0("my_plot_", i, ".png"), plot = p)
 }
