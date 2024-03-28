@@ -88,13 +88,13 @@ create_graph <- function(sce_file_path) {
     # Convert them to data frames
     sce_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(colData(sce_data)$cell_type, output$phase)
     seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(seurat_cy@meta.data$cell_type, seurat_cy$Phase)
-    df <- as.data.frame(cbind(simpsonIndexSCE = get_simpson_index(sce_cell_type_and_phase_percent), simpsonIndexSeurat = get_simpson_index(seurat_cell_type_and_phase_percent)))
+    df <- as.data.frame(cbind(CycleMix = get_simpson_index(sce_cell_type_and_phase_percent), Seurat = get_simpson_index(seurat_cell_type_and_phase_percent)))
 
     # Reshape the data to long format
     df_long <- df %>%
         rownames_to_column(var = "cell_type") %>%
         pivot_longer(
-            cols = c(simpsonIndexSCE, simpsonIndexSeurat),
+            cols = c(CycleMix, Seurat),
             names_to = "source",
             values_to = "simpson"
         )
@@ -105,6 +105,7 @@ create_graph <- function(sce_file_path) {
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         labs(x = "Cell Type", y = "Simpson Index", fill = "Source")
     print(p)
+    i <- tools::file_path_sans_ext(basename(sce_file_path))
     ggsave(paste0("my_plot_", i, ".png"), plot = p)
 }
 
