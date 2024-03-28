@@ -87,9 +87,11 @@ file_paths <- c(
 # file_path = "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
 
 for (i in seq_along(file_paths)) {
-    file_path <- file_paths[i]
-    print(file_path)
-    seurat_data <- readRDS(file_path)
+    create_graph(file_paths[i])
+}
+
+create_graph <- function(sce_file_path) {
+    seurat_data <- readRDS(sce_file_path)
     s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
     s.genes <- convert_to_ensembl(as.character(s.genes))
     g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
