@@ -52,46 +52,23 @@ convert_to_symbols <- function(ensembl_ids) {
     return(gene_symbols)
 }
 
-simpsonIndexSeurat <- function(seurat_cy) {
-    cell_type <- seurat_cy@meta.data$cell_type
-    phase <- seurat_cy$Phase
+get_cell_type_and_phase_percent <- function(cell_type, phase) {
     cell_type_and_phase_df <- data.frame(cell_type, phase)
     cell_type_and_phase_table <- table(cell_type_and_phase_df)
     cell_type_and_phase_percent <- prop.table(cell_type_and_phase_table, 1)
+    return(cell_type_and_phase_percent)
+}
+
+get_simpson_index <- function(cell_type_and_phase_percent) {
     cell_type_and_phase_squared_percentages <- cell_type_and_phase_percent^2
     sum_of_squares_by_cell_type <- rowSums(cell_type_and_phase_squared_percentages)
     simpson_indices <- sum_of_squares_by_cell_type
     return(simpson_indices)
-}
-
-simpsonIndexSCE <- function(sce_data, output) {
-    cell_type <- colData(sce_data)$cell_type
-    phase <- output$phase
-    cell_type_and_phase_df <- data.frame(cell_type, phase)
-    cell_type_and_phase_table <- table(cell_type_and_phase_df)
-    cell_type_and_phase_percent <- prop.table(cell_type_and_phase_table, 1)
-    cell_type_and_phase_squared_percentages <- cell_type_and_phase_percent^2
-    sum_of_squares_by_cell_type <- rowSums(cell_type_and_phase_squared_percentages)
-    simpson_indices <- sum_of_squares_by_cell_type
-    return(simpson_indices)
-}
-
-file_paths <- c(
-    "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
-)
-
-# file_path = "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
-
-for (i in seq_along(file_paths)) {
-    create_graph(file_paths[i])
 }
 
 create_graph <- function(sce_file_path) {
     seurat_data <- readRDS(sce_file_path)
+
     s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
     s.genes <- convert_to_ensembl(as.character(s.genes))
     g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
@@ -109,7 +86,9 @@ create_graph <- function(sce_file_path) {
 
     # Assume simpsonIndexSeurat and simpsonIndexSCE are the results from the respective functions
     # Convert them to data frames
-    df <- as.data.frame(cbind(simpsonIndexSCE = simpsonIndexSCE(sce_data, output), simpsonIndexSeurat = simpsonIndexSeurat(seurat_cy)))
+    sce_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(colData(sce_data)$cell_type, output$phase)
+    seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(seurat_cy@meta.data$cell_type, seurat_cy$Phase)
+    df <- as.data.frame(cbind(simpsonIndexSCE = get_simpson_index(sce_cell_type_and_phase_percent), simpsonIndexSeurat = get_simpson_index(seurat_cell_type_and_phase_percent)))
 
     # Reshape the data to long format
     df_long <- df %>%
@@ -128,3 +107,19 @@ create_graph <- function(sce_file_path) {
     print(p)
     ggsave(paste0("my_plot_", i, ".png"), plot = p)
 }
+
+
+file_paths <- c(
+    "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
+)
+
+sce_file_path <- "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
+create_graph(sce_file_path)
+
+# for (i in seq_along(file_paths)) {
+#     create_graph(file_paths[i])
+# }
