@@ -68,17 +68,22 @@ get_cyclemix_output <- function(sce_data) {
     return(cyclemix_output)
 }
 
+get_seurat_output <- function(seurat_data) {
+    s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
+    s.genes <- convert_gene_symbols_to_ensembl_ids(as.character(s.genes))
+    g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
+    g2m.genes <- convert_gene_symbols_to_ensembl_ids(as.character(g2m.genes))
+    seurat_output <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    return(seurat_output)
+}
+
 
 
 create_simpson_and_cell_type_graph <- function(sce_file_path) {
     seurat_data <- readRDS(sce_file_path)
 
     # Run seurat on the data
-    s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
-    s.genes <- convert_gene_symbols_to_ensembl_ids(as.character(s.genes))
-    g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
-    g2m.genes <- convert_gene_symbols_to_ensembl_ids(as.character(g2m.genes))
-    seurat_output <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    seurat_output <- get_seurat_output(seurat_data)
     sce_data <- as.SingleCellExperiment(seurat_data)
     cyclemix_output <- get_cyclemix_output(sce_data)
 
