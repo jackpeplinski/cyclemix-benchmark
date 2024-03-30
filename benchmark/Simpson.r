@@ -34,10 +34,8 @@ convert_ensemble_ids_to_gene_symbols <- function(ensembl_ids) {
     # If there are multiple SYMBOLs for a single ENSEMBL, keep the first one
     gene_symbols_df <- gene_symbols_df[!duplicated(gene_symbols_df$ENSEMBL), ]
 
-    # Create a named vector of SYMBOLs with ENSEMBLs as names
     gene_symbols <- setNames(gene_symbols_df$SYMBOL, gene_symbols_df$ENSEMBL)
 
-    # Replace the Ensembl IDs with gene symbols
     gene_symbols <- gene_symbols[ensembl_ids]
 
     return(gene_symbols)
@@ -131,35 +129,38 @@ save_graph <- function(file_prefix, file_path, datafile_name, p, width = 10, hei
     ggsave(paste0(file_prefix, datafile_name, ".png"), plot = p, width = width, height = height, units = units)
 }
 
-single_file <- function(file_path) {
-    seurat_data <- readRDS(sce_file_path)
+process_seurat_object <- function(file_path) {
+    seurat_data <- readRDS(file_path)
 
     seurat_output <- get_seurat_output(seurat_data)
-    sce_data <- as.SingleCellExperiment(seurat_data)
-    cyclemix_output <- get_cyclemix_output(sce_data)
+    cyclemix_output <- get_cyclemix_output(as.SingleCellExperiment(seurat_data))
 
-    cyclemix_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(colData(sce_data)$cell_type, cyclemix_output$phase)
-    seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(seurat_output@meta.data$cell_type, seurat_output$Phase)
+    cell_types <- seurat_output@meta.data$cell_type
+    cyclemix_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(cell_types, cyclemix_output$phase)
+    seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(cell_types, seurat_output$Phase)
+
+    file_name <- tools::file_path_sans_ext(basename(file_path))
+
     simpson_indices_graph <- get_simpson_graph(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent)
-    datafile_name <- tools::file_path_sans_ext(basename(file_path))
-    save_graph("output/simpson_", file_path, datafile_name, simpson_indices_graph)
+    save_graph("output/simpson_", file_path, file_name, simpson_indices_graph)
 
     cell_type_graph <- get_cell_type_graph(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent)
-    save_graph("output/cell_type_", file_path, datafile_name, cell_type_graph, width = 20, height = 10, units = "in")
+    save_graph("output/cell_type_", file_path, file_name, cell_type_graph, width = 20, height = 10, units = "in")
 }
 
-multi_file <- function(file_paths) {
+process_seurat_objects <- function(file_paths) {
     for (i in seq_along(file_paths)) {
-        single_file(file_paths[i])
+        file_path <- file_paths[i]
+        process_seurat_object(file_path)
     }
 }
 
-single_file("/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds")
+# single_file("/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds")
 
-# multi_file(c(
-#     "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
-#     "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
-#     "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
-#     "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
-#     "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
-# ))
+process_seurat_objects(c(
+    "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
+    "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
+))
