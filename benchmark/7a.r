@@ -99,14 +99,39 @@ create_graph <- function(sce_file_path) {
             values_to = "simpson"
         )
 
-    # Create the side-by-side bar plot
+    # Create a bar chart
+    # p <- ggplot(seurat_cell_type_and_phase_percent, aes(x = cell_type, y = percent, fill = phase)) +
+    #     geom_bar(stat = "identity", position = "dodge") +
+    #     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    #     labs(x = "Cell Type", y = "Percent", fill = "Phase")
+    # print(p)
+    # i <- tools::file_path_sans_ext(basename(sce_file_path))
+    # ggsave(paste0("", i, ".png"), plot = p)
+
     p <- ggplot(df_long, aes(x = cell_type, y = simpson, fill = source)) +
         geom_bar(stat = "identity", position = "dodge") +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         labs(x = "Cell Type", y = "Simpson Index", fill = "Source")
     print(p)
     i <- tools::file_path_sans_ext(basename(sce_file_path))
-    ggsave(paste0("my_plot_", i, ".png"), plot = p)
+    ggsave(paste0("simpson_", i, ".png"), plot = p)
+
+    # Convert the table to a data frame
+    df <- as.data.frame.matrix(seurat_cell_type_and_phase_percent)
+
+    # Convert row names to a column
+    df$cell_type <- rownames(df)
+
+    # Convert the data frame to long format
+    df_long <- tidyr::pivot_longer(df, cols = c(G1, G2M, S), names_to = "phase", values_to = "percent")
+
+    # Create a stacked bar chart
+    p <- ggplot(df_long, aes(x = cell_type, y = percent, fill = phase)) +
+        geom_bar(stat = "identity", position = "stack") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        labs(x = "Cell Type", y = "Percent", fill = "Phase")
+    print(p)
+    ggsave(paste0("cell_type", i, ".png"), plot = p)
 }
 
 
