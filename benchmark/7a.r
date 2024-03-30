@@ -25,12 +25,6 @@ convert_to_ensembl <- function(gene_symbols) {
     # If there are multiple ENSEMBLs for a single SYMBOL, keep the first one
     ensembl_ids_df <- ensembl_ids_df[!duplicated(ensembl_ids_df$SYMBOL), ]
 
-    # # Create a named vector of ENSEMBLs with SYMBOLs as names
-    # ensembl_ids <- setNames(ensembl_ids_df$ENSEMBL, ensembl_ids_df$SYMBOL)
-
-    # # Replace the gene symbols with Ensembl IDs
-    # ensembl_ids <- ensembl_ids[!is.na(gene_symbols)]
-
     return(ensembl_ids_df$ENSEMBL)
 }
 
@@ -99,22 +93,12 @@ create_graph <- function(sce_file_path) {
             values_to = "simpson"
         )
 
-    # Create a bar chart
-    # p <- ggplot(seurat_cell_type_and_phase_percent, aes(x = cell_type, y = percent, fill = phase)) +
-    #     geom_bar(stat = "identity", position = "dodge") +
-    #     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    #     labs(x = "Cell Type", y = "Percent", fill = "Phase")
-    # print(p)
-    # i <- tools::file_path_sans_ext(basename(sce_file_path))
-    # ggsave(paste0("", i, ".png"), plot = p)
-
     p <- ggplot(df_long, aes(x = cell_type, y = simpson, fill = source)) +
         geom_bar(stat = "identity", position = "dodge") +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         labs(x = "Cell Type", y = "Simpson Index", fill = "Source")
-    print(p)
     i <- tools::file_path_sans_ext(basename(sce_file_path))
-    ggsave(paste0("simpson_", i, ".png"), plot = p)
+    ggsave(paste0("output/simpson_", i, ".png"), plot = p)
 
 
     # Add missing columns to both data frames
@@ -138,24 +122,7 @@ create_graph <- function(sce_file_path) {
             strip.background = element_rect(fill = NA, color = "white"),
             panel.spacing = unit(.01, "cm")
         )
-    ggsave(paste0("cell_type_", i, ".png"), plot = p, width = 20, height = 10, units = "in")
-
-    ########################### for individual plots
-    # # Convert the table to a data frame
-    # df <- as.data.frame.matrix(seurat_cell_type_and_phase_percent)
-
-    # # Convert row names to a column
-    # df$cell_type <- rownames(df)
-
-    # # Convert the data frame to long format
-    # df_long <- tidyr::pivot_longer(df, cols = c(G1, G2M, S), names_to = "phase", values_to = "percent")
-
-    # # Create a stacked bar chart
-    # p <- ggplot(df_long, aes(x = cell_type, y = percent, fill = phase)) +
-    #     geom_bar(stat = "identity", position = "stack") +
-    #     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    #     labs(x = "Cell Type", y = "Percent", fill = "Phase")
-    # ggsave(paste0("cell_type", i, ".png"), plot = p)
+    ggsave(paste0("output/cell_type_", i, ".png"), plot = p, width = 20, height = 10, units = "in")
 }
 
 
@@ -167,9 +134,9 @@ file_paths <- c(
     "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
 )
 
-sce_file_path <- "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
-create_graph(sce_file_path)
+# sce_file_path <- "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
+# create_graph(sce_file_path)
 
-# for (i in seq_along(file_paths)) {
-#     create_graph(file_paths[i])
-# }
+for (i in seq_along(file_paths)) {
+    create_graph(file_paths[i])
+}
