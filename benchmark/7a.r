@@ -116,22 +116,46 @@ create_graph <- function(sce_file_path) {
     i <- tools::file_path_sans_ext(basename(sce_file_path))
     ggsave(paste0("simpson_", i, ".png"), plot = p)
 
-    # Convert the table to a data frame
-    df <- as.data.frame.matrix(seurat_cell_type_and_phase_percent)
 
-    # Convert row names to a column
-    df$cell_type <- rownames(df)
+    # Add missing columns to both data frames
+    sce_df$G1 <- 0
+    seurat_df$None <- 0
+
+    # Combine dataframes
+    df_long <- rbind(sce_df, seurat_df)
 
     # Convert the data frame to long format
-    df_long <- tidyr::pivot_longer(df, cols = c(G1, G2M, S), names_to = "phase", values_to = "percent")
+    df_long <- tidyr::pivot_longer(df_long, cols = c(G1, G2M, S, None), names_to = "phase", values_to = "percent")
 
-    # Create a stacked bar chart
-    p <- ggplot(df_long, aes(x = cell_type, y = percent, fill = phase)) +
-        geom_bar(stat = "identity", position = "stack") +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        labs(x = "Cell Type", y = "Percent", fill = "Phase")
-    print(p)
-    ggsave(paste0("cell_type", i, ".png"), plot = p)
+    p <- ggplot(df_long) +
+        geom_bar(aes(x = source, y = percent, fill = phase),
+            position = "stack",
+            stat = "identity"
+        ) +
+        facet_grid(~cell_type, switch = "x") +
+        theme(
+            strip.placement = "outside",
+            strip.background = element_rect(fill = NA, color = "white"),
+            panel.spacing = unit(.01, "cm")
+        )
+    ggsave(paste0("cell_type_", i, ".png"), plot = p, width = 20, height = 10, units = "in")
+
+    ########################### for individual plots
+    # # Convert the table to a data frame
+    # df <- as.data.frame.matrix(seurat_cell_type_and_phase_percent)
+
+    # # Convert row names to a column
+    # df$cell_type <- rownames(df)
+
+    # # Convert the data frame to long format
+    # df_long <- tidyr::pivot_longer(df, cols = c(G1, G2M, S), names_to = "phase", values_to = "percent")
+
+    # # Create a stacked bar chart
+    # p <- ggplot(df_long, aes(x = cell_type, y = percent, fill = phase)) +
+    #     geom_bar(stat = "identity", position = "stack") +
+    #     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    #     labs(x = "Cell Type", y = "Percent", fill = "Phase")
+    # ggsave(paste0("cell_type", i, ".png"), plot = p)
 }
 
 
