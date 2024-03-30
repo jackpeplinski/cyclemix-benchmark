@@ -47,7 +47,7 @@ get_cell_type_and_phase_percent <- function(cell_type, phase) {
     cell_type_and_phase_df <- data.frame(cell_type, phase)
     cell_type_and_phase_table <- table(cell_type_and_phase_df)
     cell_type_and_phase_percent <- prop.table(cell_type_and_phase_table, 1)
-    return(cell_type_and_phase_percent)
+    return(as.data.frame.matrix(cell_type_and_phase_percent))
 }
 
 get_simpson_index <- function(cell_type_and_phase_percent) {
@@ -77,18 +77,7 @@ get_seurat_output <- function(seurat_data) {
     return(seurat_output)
 }
 
-
-
-create_simpson_and_cell_type_graph <- function(sce_file_path) {
-    seurat_data <- readRDS(sce_file_path)
-
-    # Run seurat on the data
-    seurat_output <- get_seurat_output(seurat_data)
-    sce_data <- as.SingleCellExperiment(seurat_data)
-    cyclemix_output <- get_cyclemix_output(sce_data)
-
-    cyclemix_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(colData(sce_data)$cell_type, cyclemix_output$phase)
-    seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(seurat_output@meta.data$cell_type, seurat_output$Phase)
+get_simpson_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent) {
     simpson_indices_by_cell_type <- as.data.frame(cbind(CycleMix = get_simpson_index(cyclemix_cell_type_and_phase_percent), Seurat = get_simpson_index(seurat_cell_type_and_phase_percent)))
 
     # Reshape the data to long format
@@ -104,23 +93,22 @@ create_simpson_and_cell_type_graph <- function(sce_file_path) {
         geom_bar(stat = "identity", position = "dodge") +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         labs(x = "Cell Type", y = "Simpson Index", fill = "Source")
-    datafile_name <- tools::file_path_sans_ext(basename(sce_file_path))
-    ggsave(paste0("output/simpson_", datafile_name, ".png"), plot = simpson_indices_graph)
+    return(simpson_indices_graph)
+}
 
+get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent) {
     # Convert the tables to data frames
-    sce_df <- as.data.frame.matrix(cyclemix_cell_type_and_phase_percent)
-    sce_df$cell_type <- rownames(sce_df)
-    sce_df$source <- "sce"
+    cyclemix_cell_type_and_phase_percent$cell_type <- rownames(cyclemix_cell_type_and_phase_percent)
+    cyclemix_cell_type_and_phase_percent$source <- "sce"
 
-    seurat_df <- as.data.frame.matrix(seurat_cell_type_and_phase_percent)
-    seurat_df$cell_type <- rownames(seurat_df)
-    seurat_df$source <- "seurat"
+    seurat_cell_type_and_phase_percent$cell_type <- rownames(seurat_cell_type_and_phase_percent)
+    seurat_cell_type_and_phase_percent$source <- "seurat"
 
     # Add missing columns to both data frames
-    sce_df$G1 <- 0
-    seurat_df$None <- 0
+    cyclemix_cell_type_and_phase_percent$G1 <- 0
+    seurat_cell_type_and_phase_percent$None <- 0
 
-    df_long <- rbind(sce_df, seurat_df)
+    df_long <- rbind(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent)
 
     df_long <- tidyr::pivot_longer(df_long, cols = c(G1, G2M, S, None), names_to = "phase", values_to = "percent")
 
@@ -135,23 +123,43 @@ create_simpson_and_cell_type_graph <- function(sce_file_path) {
             strip.background = element_rect(fill = NA, color = "white"),
             panel.spacing = unit(.01, "cm")
         )
-    ggsave(paste0("output/cell_type_", datafile_name, ".png"), plot = p, width = 20, height = 10, units = "in")
+    return(p)
 }
 
+save_graph <- function(file_prefix, file_path, datafile_name, p, width = 10, height = 10, units = "in") {
+    datafile_name <- tools::file_path_sans_ext(basename(file_path))
+    ggsave(paste0(file_prefix, datafile_name, ".png"), plot = p, width = width, height = height, units = units)
+}
 
+single_file <- function(file_path) {
+    seurat_data <- readRDS(sce_file_path)
 
+    seurat_output <- get_seurat_output(seurat_data)
+    sce_data <- as.SingleCellExperiment(seurat_data)
+    cyclemix_output <- get_cyclemix_output(sce_data)
 
-file_paths <- c(
-    "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
-)
+    cyclemix_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(colData(sce_data)$cell_type, cyclemix_output$phase)
+    seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(seurat_output@meta.data$cell_type, seurat_output$Phase)
+    simpson_indices_graph <- get_simpson_graph(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent)
+    datafile_name <- tools::file_path_sans_ext(basename(file_path))
+    save_graph("output/simpson_", file_path, datafile_name, simpson_indices_graph)
 
-sce_file_path <- "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
-create_simpson_and_cell_type_graph(sce_file_path)
+    cell_type_graph <- get_cell_type_graph(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent)
+    save_graph("output/cell_type_", file_path, datafile_name, cell_type_graph, width = 20, height = 10, units = "in")
+}
 
-# for (i in seq_along(file_paths)) {
-#     create_simpson_and_cell_type_graph(file_paths[i])
-# }
+multi_file <- function(file_paths) {
+    for (i in seq_along(file_paths)) {
+        single_file(file_paths[i])
+    }
+}
+
+single_file("/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds")
+
+# multi_file(c(
+#     "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
+#     "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
+#     "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
+#     "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
+#     "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
+# ))
