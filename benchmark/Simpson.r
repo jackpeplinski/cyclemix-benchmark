@@ -13,13 +13,11 @@ library("org.Hs.eg.db")
 library(ggplot2)
 options(max.print = 20)
 
-convert_to_ensembl <- function(gene_symbols) {
-    # Convert gene symbols to Ensembl IDs
+convert_gene_symbols_to_ensembl_ids <- function(gene_symbols) {
     ensembl_ids_df <- suppressMessages(suppressWarnings(
         AnnotationDbi::select(org.Hs.eg.db, keys = gene_symbols, columns = "ENSEMBL", keytype = "SYMBOL")
     ))
 
-    # Remove rows with NA ENSEMBL
     ensembl_ids_df <- ensembl_ids_df[!is.na(ensembl_ids_df$ENSEMBL), ]
 
     # If there are multiple ENSEMBLs for a single SYMBOL, keep the first one
@@ -28,8 +26,7 @@ convert_to_ensembl <- function(gene_symbols) {
     return(ensembl_ids_df$ENSEMBL)
 }
 
-convert_to_symbols <- function(ensembl_ids) {
-    # Convert Ensembl IDs to gene symbols
+convert_ensemble_ids_to_gene_symbols <- function(ensembl_ids) {
     gene_symbols_df <- suppressMessages(suppressWarnings(
         AnnotationDbi::select(org.Hs.eg.db, keys = ensembl_ids, columns = "SYMBOL", keytype = "ENSEMBL")
     ))
@@ -60,32 +57,32 @@ get_simpson_index <- function(cell_type_and_phase_percent) {
     return(simpson_indices)
 }
 
-create_graph <- function(sce_file_path) {
+create_simpson_and_cell_type_graph <- function(sce_file_path) {
     seurat_data <- readRDS(sce_file_path)
 
+    # Run seurat on the data
     s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
-    s.genes <- convert_to_ensembl(as.character(s.genes))
+    s.genes <- convert_gene_symbols_to_ensembl_ids(as.character(s.genes))
     g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
-    g2m.genes <- convert_to_ensembl(as.character(g2m.genes))
-    seurat_cy <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+    g2m.genes <- convert_gene_symbols_to_ensembl_ids(as.character(g2m.genes))
+    seurat_output <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
 
+    # Run cyclemix on the data
     sce_data <- as.SingleCellExperiment(seurat_data)
-    rownames(sce_data) <- convert_to_symbols(rownames(sce_data))
+    rownames(sce_data) <- convert_ensemble_ids_to_gene_symbols(rownames(sce_data))
     sce_data <- sce_data[!is.na(rownames(sce_data)), ]
     sce_data <- sce_data[!duplicated(rownames(sce_data)), ]
     rowData_sce_data <- DataFrame(feature_symbol = factor(rownames(sce_data)))
     rowData(sce_data) <- rowData_sce_data
     subsettedHGeneSets <- HGeneSets$Whitfield[HGeneSets$Whitfield$Stage %in% c("S", "G2M"), ]
-    output <- classifyCells(sce_data, subsettedHGeneSets)
+    cyclemix_output <- classifyCells(sce_data, subsettedHGeneSets)
 
-    # Assume simpsonIndexSeurat and simpsonIndexSCE are the results from the respective functions
-    # Convert them to data frames
-    sce_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(colData(sce_data)$cell_type, output$phase)
-    seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(seurat_cy@meta.data$cell_type, seurat_cy$Phase)
-    df <- as.data.frame(cbind(CycleMix = get_simpson_index(sce_cell_type_and_phase_percent), Seurat = get_simpson_index(seurat_cell_type_and_phase_percent)))
+    cyclemix_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(colData(sce_data)$cell_type, cyclemix_output$phase)
+    seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(seurat_output@meta.data$cell_type, seurat_output$Phase)
+    simpson_indices_by_cell_type <- as.data.frame(cbind(CycleMix = get_simpson_index(cyclemix_cell_type_and_phase_percent), Seurat = get_simpson_index(seurat_cell_type_and_phase_percent)))
 
     # Reshape the data to long format
-    df_long <- df %>%
+    simpson_indices_by_cell_type_long <- simpson_indices_by_cell_type %>%
         rownames_to_column(var = "cell_type") %>%
         pivot_longer(
             cols = c(CycleMix, Seurat),
@@ -93,22 +90,28 @@ create_graph <- function(sce_file_path) {
             values_to = "simpson"
         )
 
-    p <- ggplot(df_long, aes(x = cell_type, y = simpson, fill = source)) +
+    simpson_indices_graph <- ggplot(simpson_indices_by_cell_type_long, aes(x = cell_type, y = simpson, fill = source)) +
         geom_bar(stat = "identity", position = "dodge") +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         labs(x = "Cell Type", y = "Simpson Index", fill = "Source")
-    i <- tools::file_path_sans_ext(basename(sce_file_path))
-    ggsave(paste0("output/simpson_", i, ".png"), plot = p)
+    datafile_name <- tools::file_path_sans_ext(basename(sce_file_path))
+    ggsave(paste0("output/simpson_", datafile_name, ".png"), plot = simpson_indices_graph)
 
+    # Convert the tables to data frames
+    sce_df <- as.data.frame.matrix(cyclemix_cell_type_and_phase_percent)
+    sce_df$cell_type <- rownames(sce_df)
+    sce_df$source <- "sce"
+
+    seurat_df <- as.data.frame.matrix(seurat_cell_type_and_phase_percent)
+    seurat_df$cell_type <- rownames(seurat_df)
+    seurat_df$source <- "seurat"
 
     # Add missing columns to both data frames
     sce_df$G1 <- 0
     seurat_df$None <- 0
 
-    # Combine dataframes
     df_long <- rbind(sce_df, seurat_df)
 
-    # Convert the data frame to long format
     df_long <- tidyr::pivot_longer(df_long, cols = c(G1, G2M, S, None), names_to = "phase", values_to = "percent")
 
     p <- ggplot(df_long) +
@@ -122,7 +125,7 @@ create_graph <- function(sce_file_path) {
             strip.background = element_rect(fill = NA, color = "white"),
             panel.spacing = unit(.01, "cm")
         )
-    ggsave(paste0("output/cell_type_", i, ".png"), plot = p, width = 20, height = 10, units = "in")
+    ggsave(paste0("output/cell_type_", datafile_name, ".png"), plot = p, width = 20, height = 10, units = "in")
 }
 
 
@@ -134,9 +137,9 @@ file_paths <- c(
     "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
 )
 
-# sce_file_path <- "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
-# create_graph(sce_file_path)
+sce_file_path <- "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds"
+create_simpson_and_cell_type_graph(sce_file_path)
 
-for (i in seq_along(file_paths)) {
-    create_graph(file_paths[i])
-}
+# for (i in seq_along(file_paths)) {
+#     create_simpson_and_cell_type_graph(file_paths[i])
+# }
