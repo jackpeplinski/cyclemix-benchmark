@@ -57,6 +57,19 @@ get_simpson_index <- function(cell_type_and_phase_percent) {
     return(simpson_indices)
 }
 
+get_cyclemix_output <- function(sce_data) {
+    rownames(sce_data) <- convert_ensemble_ids_to_gene_symbols(rownames(sce_data))
+    sce_data <- sce_data[!is.na(rownames(sce_data)), ]
+    sce_data <- sce_data[!duplicated(rownames(sce_data)), ]
+    rowData_sce_data <- DataFrame(feature_symbol = factor(rownames(sce_data)))
+    rowData(sce_data) <- rowData_sce_data
+    subsettedHGeneSets <- HGeneSets$Whitfield[HGeneSets$Whitfield$Stage %in% c("S", "G2M"), ]
+    cyclemix_output <- classifyCells(sce_data, subsettedHGeneSets)
+    return(cyclemix_output)
+}
+
+
+
 create_simpson_and_cell_type_graph <- function(sce_file_path) {
     seurat_data <- readRDS(sce_file_path)
 
@@ -66,16 +79,8 @@ create_simpson_and_cell_type_graph <- function(sce_file_path) {
     g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
     g2m.genes <- convert_gene_symbols_to_ensembl_ids(as.character(g2m.genes))
     seurat_output <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-
-    # Run cyclemix on the data
     sce_data <- as.SingleCellExperiment(seurat_data)
-    rownames(sce_data) <- convert_ensemble_ids_to_gene_symbols(rownames(sce_data))
-    sce_data <- sce_data[!is.na(rownames(sce_data)), ]
-    sce_data <- sce_data[!duplicated(rownames(sce_data)), ]
-    rowData_sce_data <- DataFrame(feature_symbol = factor(rownames(sce_data)))
-    rowData(sce_data) <- rowData_sce_data
-    subsettedHGeneSets <- HGeneSets$Whitfield[HGeneSets$Whitfield$Stage %in% c("S", "G2M"), ]
-    cyclemix_output <- classifyCells(sce_data, subsettedHGeneSets)
+    cyclemix_output <- get_cyclemix_output(sce_data)
 
     cyclemix_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(colData(sce_data)$cell_type, cyclemix_output$phase)
     seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(seurat_output@meta.data$cell_type, seurat_output$Phase)
@@ -127,6 +132,8 @@ create_simpson_and_cell_type_graph <- function(sce_file_path) {
         )
     ggsave(paste0("output/cell_type_", datafile_name, ".png"), plot = p, width = 20, height = 10, units = "in")
 }
+
+
 
 
 file_paths <- c(
