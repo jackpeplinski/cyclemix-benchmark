@@ -5,6 +5,7 @@ require("stringr")
 library("Seurat")
 library("biomaRt")
 library("org.Mm.eg.db")
+options(max.print = 20)
 
 "
 GSE42268 Dataset Notes:
@@ -139,7 +140,7 @@ format_gse_42268 <- function() {
                     data <- data.frame(
                         lapply(
                             counts_data,
-                            function(x) if (is.numeric(x)) round(x) else x
+                            function(x) if (is.numeric(x)) round(x * 100) else x
                         )
                     )
                 } else {
@@ -212,11 +213,14 @@ format_gse_42268 <- function() {
         colData = col_data,
         rowData = row_data
     )
+    return(sce)
+}
 
+synthesize_gse_42268 <- function(sce) {
     # create synthetic data
-    synth_g1 <- synthesize_gse_42268(sce, "G1")
-    synth_g2 <- synthesize_gse_42268(sce, "G2/M")
-    synth_s <- synthesize_gse_42268(sce, "S")
+    synth_g1 <- synthesize_gse_42268_by_type(sce, "G1")
+    synth_g2 <- synthesize_gse_42268_by_type(sce, "G2/M")
+    synth_s <- synthesize_gse_42268_by_type(sce, "S")
     g1_names <- colnames(synth_g1)
     g2_names <- colnames(synth_g2)
     s_names <- colnames(synth_s)
@@ -230,7 +234,7 @@ format_gse_42268 <- function() {
                 s_names
             ))))
         ),
-        rowData = row_data
+        rowData = rowData(sce)
     )
     libsizes <- colSums(combined)
     size.factors <- libsizes / mean(libsizes)
@@ -238,7 +242,7 @@ format_gse_42268 <- function() {
     return(sceMix)
 }
 
-synthesize_gse_42268 <- function(sce, cell_type) {
+synthesize_gse_42268_by_type <- function(sce, cell_type) {
     cells <- colnames(sce)[colData(sce)$cell_type1 == cell_type]
     phase_df <- assays(sce)$counts[, cells]
     synth <- average_phase_df(phase_df)
@@ -291,15 +295,19 @@ average_of_adjacent <- function(df) {
     return(new_df)
 }
 
-classify_gse_42268 <- function() {
-    gse_sce <<- format_gse_42268()
+classify_gse_42268 <- function(gse_sce) {
     cat("===GSE 42268 | CycleMix | MGeneSets$Cyclone===\n")
     gse_cm_cy <<- classifyCells(gse_sce, MGeneSets$Cyclone)
+    # plotMixture(gse_cm_cy$fit[["G1"]], BIC = TRUE)
+    # plotMixture(gse_cm_cy$fit[["G2M"]], BIC = TRUE)
+    # plotMixture(gse_cm_cy$fit[["S"]], BIC = TRUE)
     print(table(factor(gse_cm_cy$phase), gse_sce$cell_type1))
     cat("======GSE 42268 | CycleMix | MSeuratGeneSet===\n")
     gse_cm_se <<- classifyCells(gse_sce, MSeuratGeneSet)
+    # plotMixture(gse_cm_se$fit[["G1"]], BIC = TRUE)
+    # plotMixture(gse_cm_se$fit[["G2M"]], BIC = TRUE)
+    # plotMixture(gse_cm_se$fit[["S"]], BIC = TRUE)
     print(table(factor(gse_cm_se$phase), gse_sce$cell_type1))
-
     gse_seurat <- as.Seurat(gse_sce)
     gse_seurat <- NormalizeData(gse_seurat)
     gse_seurat <- FindVariableFeatures(gse_seurat, selection.method = "vst")
@@ -316,7 +324,11 @@ classify_gse_42268 <- function() {
     gse_seurat_se <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(gse_seurat_se[[]]$Phase, gse_seurat[[]]$cell_type1))
 }
-# classify_gse_42268()
+gse_sce <<- format_gse_42268()
+cat("***Non-synthetic***\n")
+classify_gse_42268(gse_sce)
+cat("***Synthetic***\n")
+classify_gse_42268(synthesize_gse_42268(gse_sce))
 
 validate_gse_42268 <- function() {
     sce <- format_gse_42268()
@@ -598,6 +610,9 @@ classify_emtab_2805 <- function() {
     print(table(factor(emtab_cm_cy$phase), emtab_sce$cell_type1))
     cat("===EMTAB 2805 | CycleMix | MSeuratGeneSet===\n")
     emtab_cm_se <<- classifyCells(emtab_sce, MSeuratGeneSet)
+    # plotMixture(emtab_cm_se$fit[["G1"]], BIC = TRUE)
+    # plotMixture(emtab_cm_se$fit[["G2M"]], BIC = TRUE)
+    # plotMixture(emtab_cm_se$fit[["S"]], BIC = TRUE)
     emtab_cm_se_table <- table(factor(emtab_cm_se$phase), emtab_sce$cell_type1)
     print(emtab_cm_se_table)
 
@@ -611,10 +626,13 @@ classify_emtab_2805 <- function() {
     g2m.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "G2M"]
     emtab_seurat_cy <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(emtab_seurat_cy[[]]$Phase, emtab_seurat[[]]$orig.ident))
+    # plotMixture(emtab_cm_cy$fit[["G1"]], BIC = TRUE)
+    # plotMixture(emtab_cm_c$fit[["G2M"]], BIC = TRUE)
+    # plotMixture(emtab_cm_cy$fit[["S"]], BIC = TRUE)
     cat("===EMTAB 2805 | Seurat | MSeuratGeneSet===\n")
     s.genes <- seurat_mouse_orth$mmus_s
     g2m.genes <- seurat_mouse_orth$mmus_g2m
     emtab_seurat_se <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(emtab_seurat_se[[]]$Phase, emtab_seurat[[]]$orig.ident))
 }
-# classify_emtab_2805()
+classify_emtab_2805()
