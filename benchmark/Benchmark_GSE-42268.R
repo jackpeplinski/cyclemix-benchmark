@@ -14,71 +14,39 @@ GSE42268 Dataset Notes:
 - Round fpkm for counts
 - Put fpkm into the logcounts
 "
-format_data <- function() {
-    data <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
-
-    phase <- c("S")
-
-    # Determine the number of rows in the data frame
-    num_rows <- length(data$mmus_s)
-
-    # Repeat the phase values to match the number of rows
-    phase <- rep_len(phase, num_rows)
-
-    # Combine the columns using cbind()
-    result <- cbind(data$mmus_s, phase)
-
-    # Convert the result to a data frame
-    result <- as.data.frame(result)
-
-    # Assign column names
-    colnames(result) <- c("Gene", "Stage")
-
-    ##### Phase 2
-    phase <- c("G2M")
-
-    # Determine the number of rows in the data frame
-    num_rows <- length(data$mmus_g2m)
-
-    # Repeat the phase values to match the number of rows
-    phase <- rep_len(phase, num_rows)
-
-    # Combine the columns using cbind()
-    result2 <- cbind(data$mmus_g2m, phase)
-
-    # Convert the result to a data frame
-    result2 <- as.data.frame(result2)
-
-    # Assign column names
-    colnames(result2) <- c("Gene", "Stage")
-
-    results <- rbind(result, result2)
-    results$Gene <- results$Gene
-    results$Dir <- 1
-    results$Gene <- as.factor(results$Gene)
-    results$Stage <- as.factor(results$Stage)
-
-    ensembl <- useMart(biomart = "ensembl", dataset = "mmusculus_gene_ensembl")
-
-    ensembl_ids <- getBM(
-        attributes = c("ensembl_gene_id", "external_gene_name"),
-        filters = "external_gene_name",
-        values = results$Gene,
-        mart = ensembl
-    )
-    ensembl_ids$external_gene_name <- ensembl_ids$external_gene_name
-
-    merged_df <- merge(results, ensembl_ids, by.x = "Gene", by.y = "external_gene_name", all.x = TRUE)
-
-    rownames(merged_df) <- merged_df$ensembl_gene_id
-
-    merged_df <- subset(merged_df, select = -ensembl_gene_id)
-    return(merged_df)
-}
-MSeuratGeneSet <- format_data()
+MSeuratGeneSet <- readRDS("./benchmarkData/MSeuratGeneSet.RDS")
 seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
 
-format_gse_42268 <- function() {
+# format the data
+format_counts <- function(count_type, counts_data, gsm_prefix) {
+    # round data if counts
+    if (count_type == "counts") {
+        data <- data.frame(
+            lapply(
+                counts_data,
+                function(x) if (is.numeric(x)) round(x * 100) else x
+            )
+        )
+    } else {
+        data <- counts_data
+    }
+
+    # sets rownames to ids
+    rownames(data) <- data$id
+
+    # remove uneeded data
+    data <- subset(data,
+        select = -c(
+            id,
+            gene.symbol
+        )
+    )
+
+    colnames(data)[1] <- gsm_prefix
+    return(data)
+}
+
+get_sce_for_gse_42268 <- function() {
     # counts should have a structure like:
     # row.name                 gsmcellname
     #                          [fpkm]
@@ -110,11 +78,7 @@ format_gse_42268 <- function() {
     # duplicate counts variable for logcounts
     logcounts <- counts
 
-    # copy/pasted this from gseParse
-    col_data_xml <- data.frame(
-        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"),
-        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556")
-    )
+    col_data_xml <- readRDS("./benchmarkData/ColDataXML.rds")
 
     files <- list.files(
         path =
@@ -125,46 +89,19 @@ format_gse_42268 <- function() {
     # for each file
     for (file in files) {
         # if the file name matches the col_data
-        gsm <- substr(file, 1, 10)
-        if (is.element(gsm, col_data_xml$gsm)) {
+        gsm_prefix <- substr(file, 1, 10)
+        if (is.element(gsm_prefix, col_data_xml$gsm)) {
             # get the data for the file
             counts_data <- read.table(
                 str_interp("./benchmarkData/GSE42268/GSE42268_RAW/${file}"),
                 header = TRUE
             )
 
-            # format the data
-            format_counts <- function(count_type) {
-                # round data if counts
-                if (count_type == "counts") {
-                    data <- data.frame(
-                        lapply(
-                            counts_data,
-                            function(x) if (is.numeric(x)) round(x * 100) else x
-                        )
-                    )
-                } else {
-                    data <- counts_data
-                }
 
-                # sets rownames to ids
-                rownames(data) <- data$id
-
-                # remove uneeded data
-                data <- subset(data,
-                    select = -c(
-                        id,
-                        gene.symbol
-                    )
-                )
-
-                colnames(data)[1] <- gsm
-                return(data)
-            }
 
             # the values for the gene expression
-            logcounts_data <- format_counts("logcounts")
-            counts_data <- format_counts("counts")
+            logcounts_data <- format_counts("logcounts", counts_data, gsm_prefix)
+            counts_data <- format_counts("counts", counts_data, gsm_prefix)
 
             # the phases of cells
             col_data <- DataFrame(
@@ -324,14 +261,14 @@ classify_gse_42268 <- function(gse_sce) {
     gse_seurat_se <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(gse_seurat_se[[]]$Phase, gse_seurat[[]]$cell_type1))
 }
-gse_sce <<- format_gse_42268()
+gse_sce <<- get_sce_for_gse_42268()
 cat("***Non-synthetic***\n")
 classify_gse_42268(gse_sce)
 cat("***Synthetic***\n")
 classify_gse_42268(synthesize_gse_42268(gse_sce))
 
 validate_gse_42268 <- function() {
-    sce <- format_gse_42268()
+    sce <- get_sce_for_gse_42268()
     invalid_row_counts <- c()
     for (i in colnames(logcounts(sce))) { # names of files
         # print(colnames(logcounts(sce)))
@@ -393,11 +330,8 @@ wilcox_gse_42268 <- function() {
         pattern = ".*.txt"
     )
 
-    # get cell phases from python script
-    col_data_xml <- data.frame(
-        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"),
-        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556")
-    )
+    col_data_xml <- readRDS("./benchmarkData/ColDataXML.rds")
+
 
     # for each id
     for (ensemble_id in ensemble_ids) {
@@ -469,11 +403,7 @@ wilcox_fast_gse_42268 <- function() {
         ...
     "
     # not all cells have phases
-    col_data_xml <- data.frame(
-        cell_type1 = c("G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "S", "S", "S", "S", "S", "S", "S", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G2/M", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1", "G1"),
-        gsm = c("GSM1036483", "GSM1036484", "GSM1036485", "GSM1036486", "GSM1036487", "GSM1036488", "GSM1036489", "GSM1036490", "GSM1036491", "GSM1036492", "GSM1036493", "GSM1036494", "GSM1036495", "GSM1036496", "GSM1036500", "GSM1036501", "GSM1036502", "GSM1036503", "GSM1036504", "GSM1036505", "GSM1036506", "GSM1036507", "GSM1036508", "GSM1036509", "GSM1036510", "GSM1036511", "GSM1036512", "GSM1036513", "GSM1036522", "GSM1036523", "GSM1036524", "GSM1036525", "GSM1036526", "GSM1036527", "GSM1036528", "GSM1036529", "GSM1036530", "GSM1036531", "GSM1036532", "GSM1036533", "GSM1036534", "GSM1036535", "GSM1036536", "GSM1036537", "GSM1036538", "GSM1036539", "GSM1036540", "GSM1036541", "GSM1036542", "GSM1036543", "GSM1036544", "GSM1036545", "GSM1036546", "GSM1036547", "GSM1036548", "GSM1036549", "GSM1036550", "GSM1036551", "GSM1036552", "GSM1036553", "GSM1036554", "GSM1036555", "GSM1036556")
-    )
-
+    col_data_xml <- readRDS("./benchmarkData/ColDataXML.rds")
     gsms <- col_data_xml$gsm
     for (file in files) {
         gsm <- substr(file, 1, 10)
@@ -538,101 +468,3 @@ wilcox_fast_gse_42268 <- function() {
     # df <- readFile() # nrow(df[df$p_value<0.05,]), mean(df$p_value)
     # df2 <- df[order(df$p_value), ]
 }
-
-format_emtab_2805 <- function() {
-    emtab_2805_file <- function(file_name) {
-        # get values
-        counts <- read.table(
-            str_interp("./benchmarkData/E-MTAB-2805/E-MTAB-2805.processed.1/${file_name}.txt"),
-            header = TRUE
-        )
-        counts$AssociatedGeneName <- counts$AssociatedGeneName
-        counts <- counts[!duplicated(counts$AssociatedGeneName), ]
-        counts <- na.omit(counts)
-
-        # set rownames
-        rownames(counts) <- counts$AssociatedGeneName
-
-        # remove unused values
-        counts <- head(counts, -97)
-
-        # build needed df for sce
-        row_data <- DataFrame(
-            row.names = counts$AssociatedGeneName,
-            feature_symbol = factor(counts$AssociatedGeneName)
-        )
-
-        # build needed df for sce
-        col_data <- DataFrame(
-            row.names = colnames(counts)[5:100],
-            Species = factor("Mus musculus"),
-            cell_type1 = factor(
-                substr(colnames(counts)[5:100], 1, 2)
-            ),
-            Source = factor("ESC")
-        )
-
-        # remove unneeded data
-        counts <- subset(counts,
-            select = -c(
-                EnsemblGeneID,
-                EnsemblTranscriptID,
-                AssociatedGeneName,
-                GeneLength
-            )
-        )
-
-        # build sce
-        sce <- SingleCellExperiment(
-            assays = list(counts = counts),
-            colData = col_data,
-            rowData = row_data
-        )
-        counts <- assay(sce, "counts")
-        libsizes <- colSums(counts)
-        size.factors <- libsizes / mean(libsizes)
-        logcounts(sce) <- log2(t(t(counts) / size.factors) + 1)
-        return(sce)
-    }
-
-    emtab_2805_res <- cbind(
-        emtab_2805_file("G1_singlecells_counts"),
-        emtab_2805_file("G2M_singlecells_counts"),
-        emtab_2805_file("S_singlecells_counts")
-    )
-    return(emtab_2805_res)
-}
-
-classify_emtab_2805 <- function() {
-    cat("===EMTAB 2805 | CycleMix | MGeneSets$Cyclone===\n")
-    emtab_sce <<- format_emtab_2805()
-    emtab_cm_cy <<- classifyCells(emtab_sce, MGeneSets$Cyclone)
-    print(table(factor(emtab_cm_cy$phase), emtab_sce$cell_type1))
-    cat("===EMTAB 2805 | CycleMix | MSeuratGeneSet===\n")
-    emtab_cm_se <<- classifyCells(emtab_sce, MSeuratGeneSet)
-    # plotMixture(emtab_cm_se$fit[["G1"]], BIC = TRUE)
-    # plotMixture(emtab_cm_se$fit[["G2M"]], BIC = TRUE)
-    # plotMixture(emtab_cm_se$fit[["S"]], BIC = TRUE)
-    emtab_cm_se_table <- table(factor(emtab_cm_se$phase), emtab_sce$cell_type1)
-    print(emtab_cm_se_table)
-
-    emtab_seurat <- as.Seurat(emtab_sce)
-    emtab_seurat <- NormalizeData(emtab_seurat)
-    emtab_seurat <- FindVariableFeatures(emtab_seurat, selection.method = "vst")
-    emtab_seurat <- ScaleData(emtab_seurat, features = rownames(emtab_seurat))
-    emtab_seurat <<- RunPCA(emtab_seurat, features = VariableFeatures(emtab_seurat), ndims.print = 6:10, nfeatures.print = 10)
-    cat("===EMTAB 2805 | Seurat | MGeneSets$Cyclone===\n")
-    s.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "S"]
-    g2m.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "G2M"]
-    emtab_seurat_cy <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-    print(table(emtab_seurat_cy[[]]$Phase, emtab_seurat[[]]$orig.ident))
-    # plotMixture(emtab_cm_cy$fit[["G1"]], BIC = TRUE)
-    # plotMixture(emtab_cm_c$fit[["G2M"]], BIC = TRUE)
-    # plotMixture(emtab_cm_cy$fit[["S"]], BIC = TRUE)
-    cat("===EMTAB 2805 | Seurat | MSeuratGeneSet===\n")
-    s.genes <- seurat_mouse_orth$mmus_s
-    g2m.genes <- seurat_mouse_orth$mmus_g2m
-    emtab_seurat_se <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-    print(table(emtab_seurat_se[[]]$Phase, emtab_seurat[[]]$orig.ident))
-}
-classify_emtab_2805()

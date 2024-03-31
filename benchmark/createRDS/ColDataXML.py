@@ -1,9 +1,9 @@
 from xml.dom.minidom import parse, parseString
 import os
 
-os.chdir("/Users/jackpeplinski/CycleMix/jackR")
+os.chdir("/Users/jackpeplinski/CycleMix/benchmark")
 # ignore all phase when it's in a matrix
-dom = parse("../jackData/GSE42268/GSE42268_family.xml")
+dom = parse("../benchmarkData/GSE42268/GSE42268_family.xml")
 samples = dom.getElementsByTagName("Sample")
 accs = []
 orgs = []
@@ -16,28 +16,25 @@ for sample in samples:
     for characteristic in characteristics:
         # print(characteristic.getAttribute("tag") == "cell cycle phase")
         if characteristic.getAttribute("tag") == "cell type":
-            cell_type = characteristic.firstChild.nodeValue.replace(
-                "\n", "").rstrip()
+            cell_type = characteristic.firstChild.nodeValue.replace("\n", "").rstrip()
         if characteristic.getAttribute("tag") == "cell cycle phase":
-            phase = characteristic.firstChild.nodeValue.replace(
-                "\n", "").rstrip()
+            phase = characteristic.firstChild.nodeValue.replace("\n", "").rstrip()
     cell_types.append(cell_type)
     accs.append(acc)
     orgs.append(org)
-    phases.append(phase)
+    phases.append(phase.strip())
 
+# Remove "All phase" from the list
 indices = [i for i, x in enumerate(phases) if x == "All phase"]
-print(indices)
-
 for idx, index in enumerate(indices):
-    print(accs.pop(index-idx))
-    print(cell_types.pop(index-idx))
-    print(phases.pop(index-idx))
+    accs.pop(index - idx)
+    cell_types.pop(index - idx)
+    phases.pop(index - idx)
 
 print(accs)
-print("####")
-print(orgs)
-print("###")
-print(cell_types)
-print("###")
+# print("####")
+# print(orgs)
+# print("###")
+# print(cell_types)
+# print("###")
 print(phases)
