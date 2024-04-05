@@ -12,6 +12,7 @@ get_data <- function() {
 
     # start at file 4 because the first 3 files do not have phases from ColDataXML.rds
     data <- read.table(files[4], header = TRUE, row.names = 1)
+    data <- data["fpkm"]
     file_name_without_extension <- sub(".*/(GSM[0-9]+).*", "\\1", files[4])
     data <- rename(data, !!file_name_without_extension := "fpkm")
 
@@ -25,28 +26,38 @@ get_data <- function() {
             data <- cbind(data, df)
         }
     }
-    return(data)
+    return(as.matrix(data))
 }
 
 get_feature_symbol <- function() {
+    # read any file to get the feature_symbol data
+    data <- read.table("./benchmarkData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt", header = TRUE, row.names = 1)
     feature_symbol <- data["gene.symbol"]
     feature_symbol_df <- DataFrame(feature_symbol = feature_symbol$gene.symbol, row.names = rownames(data))
     return(feature_symbol_df)
 }
 
 get_counts <- function(data) {
-    counts <- dplyr::select(data, -gene.symbol)
+    f <- function(x) if (is.numeric(x)) round(x * 100) else x
+    counts <- apply(counts, c(1, 2), f)
     return(counts)
+}
+
+get_logcounts <- function(data) {
+    libsizes <- colSums(data)
+    size.factors <- libsizes / mean(libsizes)
+    logcounts <- log2(t(t(data)) + 1)
+    return(logcounts)
 }
 
 get_sce <- function() {
     data <- get_data()
+    logcounts <- get_logcounts(data)
     counts <- get_counts(data)
-    counts <- as.matrix(dplyr::select(data, -gene.symbol))
     col_data <- readRDS("./benchmarkData/ColDataXML.rds")
     feature_symbol <- get_feature_symbol()
     sce <- SingleCellExperiment(
-        assays = list(counts = counts),
+        assays = list(counts = counts, logcounts = logcounts),
         colData = col_data,
         rowData = feature_symbol
     )
