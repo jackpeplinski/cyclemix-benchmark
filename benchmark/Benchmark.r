@@ -2,7 +2,24 @@ library(SingleCellExperiment)
 library(dplyr)
 options(max.print = 20)
 
-get_data <- function() {
+does_file_have_phase <- function(col_data, file) {
+    return(any(sapply(rownames(col_data), function(x) grepl(x, file))))
+}
+
+# for example, given GSM1036480_EB5K_01.txt return GSM1036480
+get_gsm_number <- function(file) {
+    return(sub(".*/(GSM[0-9]+).*", "\\1", file))
+}
+
+get_data_from_file <- function(file) {
+    data <- read.table(file, header = TRUE, row.names = 1)
+    data <- data["fpkm"]
+    gsm_number <- get_gsm_number(file)
+    data <- rename(data, !!gsm_number := "fpkm")
+    return(data)
+}
+
+get_data_from_files <- function() {
     files <- list.files(
         path =
             "./benchmarkData/GSE42268/GSE42268_RAW",
@@ -11,18 +28,12 @@ get_data <- function() {
     )
 
     # start at file 4 because the first 3 files do not have phases from ColDataXML.rds
-    data <- read.table(files[4], header = TRUE, row.names = 1)
-    data <- data["fpkm"]
-    file_name_without_extension <- sub(".*/(GSM[0-9]+).*", "\\1", files[4])
-    data <- rename(data, !!file_name_without_extension := "fpkm")
+    data <- get_data_from_file(files[4])
 
     col_data <- readRDS("./benchmarkData/ColDataXML.rds")
     for (file in files[-4]) {
-        if (any(sapply(rownames(col_data), function(x) grepl(x, file)))) {
-            df <- read.table(file, header = TRUE, row.names = 1)
-            df <- df["fpkm"]
-            file_name_without_extension <- sub(".*/(GSM[0-9]+).*", "\\1", file)
-            df <- rename(df, !!file_name_without_extension := "fpkm")
+        if (does_file_have_phase(col_data, file)) {
+            df <- get_data_from_file(file)
             data <- cbind(data, df)
         }
     }
@@ -51,7 +62,7 @@ get_logcounts <- function(data) {
 }
 
 get_sce <- function() {
-    data <- get_data()
+    data <- get_data_from_files()
     logcounts <- get_logcounts(data)
     counts <- get_counts(data)
     col_data <- readRDS("./benchmarkData/ColDataXML.rds")
@@ -67,11 +78,3 @@ get_sce <- function() {
 }
 
 sce <- get_sce()
-
-
-# Create a SingleCellExperiment object
-
-# counts <- assay(sce, "counts")
-# libsizes <- colSums(logcounts)
-# size.factors <- libsizes / mean(libsizes)
-# logcounts(sce) <- log2(t(t(logcounts)) + 1)
