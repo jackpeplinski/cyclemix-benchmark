@@ -17,142 +17,6 @@ GSE42268 Dataset Notes:
 MSeuratGeneSet <- readRDS("./benchmarkData/MSeuratGeneSet.RDS")
 seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
 
-# format the data
-format_counts <- function(count_type, counts_data, gsm_prefix) {
-    # round data if counts
-    if (count_type == "counts") {
-        data <- data.frame(
-            lapply(
-                counts_data,
-                function(x) if (is.numeric(x)) round(x * 100) else x
-            )
-        )
-    } else {
-        data <- counts_data
-    }
-
-    # sets rownames to ids
-    rownames(data) <- data$id
-
-    # remove uneeded data
-    data <- subset(data,
-        select = -c(
-            id,
-            gene.symbol
-        )
-    )
-
-    colnames(data)[1] <- gsm_prefix
-    return(data)
-}
-
-get_sce_for_gse_42268 <- function() {
-    # counts should have a structure like:
-    # row.name                 gsmcellname
-    #                          [fpkm]
-
-    # load counts info; doesn't matter which file, could be any
-    counts <- read.table(
-        str_interp("./benchmarkData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
-        header = TRUE
-    )
-
-    # adds row.name with ensembleID
-    rownames(counts) <- counts$id
-
-    # adds gene.symbol with gene symbol
-    row_data <- DataFrame(
-        row.names = counts$id,
-        feature_symbol = factor(counts$gene.symbol)
-    )
-
-    # remove unneeded info. counts is empty with only rownames = ensembl id now
-    counts <- subset(counts,
-        select = -c(
-            id,
-            gene.symbol,
-            fpkm
-        )
-    )
-
-    # duplicate counts variable for logcounts
-    logcounts <- counts
-
-    col_data_xml <- readRDS("./benchmarkData/ColDataXML.rds")
-
-    files <- list.files(
-        path =
-            "./benchmarkData/GSE42268/GSE42268_RAW",
-        pattern = ".*.txt"
-    )
-
-    # for each file
-    for (file in files) {
-        # if the file name matches the col_data
-        gsm_prefix <- substr(file, 1, 10)
-        if (is.element(gsm_prefix, col_data_xml$gsm)) {
-            # get the data for the file
-            counts_data <- read.table(
-                str_interp("./benchmarkData/GSE42268/GSE42268_RAW/${file}"),
-                header = TRUE
-            )
-
-
-
-            # the values for the gene expression
-            logcounts_data <- format_counts("logcounts", counts_data, gsm_prefix)
-            counts_data <- format_counts("counts", counts_data, gsm_prefix)
-
-            # the phases of cells
-            col_data <- DataFrame(
-                row.names = col_data_xml$gsm,
-                cell_type1 = factor(col_data_xml$cell_type1)
-            )
-            # verify that the correct phase is matched
-            # print(col_data["GSM1036531", ])
-
-            # combine phases and expressions
-            logcounts <- cbind(logcounts, logcounts_data)
-            counts <- cbind(counts, counts_data)
-        }
-    }
-
-    sce <- SingleCellExperiment(
-        assays = list(counts = counts),
-        colData = col_data,
-        rowData = row_data
-    )
-    counts <- assay(sce, "counts")
-    libsizes <- colSums(logcounts)
-    size.factors <- libsizes / mean(libsizes)
-    logcounts(sce) <- log2(t(t(logcounts)) + 1)
-
-    # because this for some reason isn't working with ensembleids, remove the duplicates and use gene idsa
-    df <- rowData(sce)
-    duplicated_rows <- which(duplicated(df$feature_symbol))
-    row_names <- df[-duplicated_rows, ]
-    counts <- assays(sce)$counts[-duplicated_rows, ]
-    row.names(counts) <- row_names
-    logcounts <- assays(sce)$logcounts[-duplicated_rows, ]
-    row.names(logcounts) <- row_names
-    row_data <- DataFrame(
-        row.names = row_names,
-        feature_symbol = factor(row_names)
-    )
-    col_data <- as.data.frame(colData(sce))[, , FALSE]
-    col_data <- DataFrame(
-        row.names = rownames(col_data),
-        cell_type1 = factor(col_data$cell_type1)
-    )
-
-    sce <- SingleCellExperiment(
-        assays = list(counts = counts, logcounts = logcounts),
-        colData = col_data,
-        rowData = row_data
-    )
-    return(sce)
-}
-
 synthesize_gse_42268 <- function(sce) {
     # create synthetic data
     synth_g1 <- synthesize_gse_42268_by_type(sce, "G1")
@@ -261,14 +125,14 @@ classify_gse_42268 <- function(gse_sce) {
     gse_seurat_se <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(gse_seurat_se[[]]$Phase, gse_seurat[[]]$cell_type1))
 }
-gse_sce <<- get_sce_for_gse_42268()
+gse_sce <<- get_sce()
 cat("***Non-synthetic***\n")
 classify_gse_42268(gse_sce)
 cat("***Synthetic***\n")
 classify_gse_42268(synthesize_gse_42268(gse_sce))
 
 validate_gse_42268 <- function() {
-    sce <- get_sce_for_gse_42268()
+    sce <- get_sce()
     invalid_row_counts <- c()
     for (i in colnames(logcounts(sce))) { # names of files
         # print(colnames(logcounts(sce)))
