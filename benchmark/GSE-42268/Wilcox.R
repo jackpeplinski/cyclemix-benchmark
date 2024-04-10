@@ -1,76 +1,5 @@
-# for each gene in the cyclemix
+# for each gene in the GSE-42268 dataset
 # wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1)
-wilcox_gse_42268 <- function() {
-    # this may be broken
-    "
-    get row names from file
-    for each ensemble id
-        for each file
-            get the value of that row name
-            if that file is G2M store that value in a vector
-            else store that value in another vector
-    run a wilcox test
-    "
-
-    # get ensemble_ids
-    counts <- read.table(
-        str_interp("./benchmarkData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
-        header = TRUE
-    )
-    ensemble_ids <- counts$id
-
-    # get list of files
-    files <- list.files(
-        path =
-            "./benchmarkData/GSE42268/GSE42268_RAW",
-        pattern = ".*.txt"
-    )
-
-    col_data_xml <- readRDS("./benchmarkData/ColDataXML.rds")
-
-
-    # for each id
-    for (ensemble_id in ensemble_ids) {
-        # if the element is in Cyclone set
-        if (is.element(ensemble_id, rownames(MGeneSets$Cyclone))) {
-            g2m <- c()
-            g1 <- c()
-            s <- c()
-
-            # for each file
-            for (file in files) {
-                # get the file name
-                gsm <- substr(file, 1, 10)
-
-                # get values for the file
-                counts <- read.table(
-                    str_interp("./benchmarkData/GSE42268/GSE42268_RAW/${file}"),
-                    header = TRUE
-                )
-
-                # get the values for that ID
-                fpkm <- counts[counts$id == ensemble_id, ]$fpkm
-
-                # print(col_data_xml[col_data_xml$gsm == gsm, ]$cell_type1)
-                # print(length(col_data_xml[col_data_xml$gsm == gsm, ]$cell_type1) > 0)
-
-                # add the fpkm value for the ensemble for that cell
-                if (length(col_data_xml[col_data_xml$gsm == gsm, ]$cell_type1) > 0 &&
-                    col_data_xml[col_data_xml$gsm == gsm, ]$cell_type1 == "G2/M") {
-                    g2m <- append(g2m, fpkm)
-                } else if (length(col_data_xml[col_data_xml$gsm == gsm, ]$cell_type1) > 0 &&
-                    col_data_xml[col_data_xml$gsm == gsm, ]$cell_type1 == "S") {
-                    g2m <- append(s, fpkm)
-                } else {
-                    g1 <- append(g1, fpkm)
-                }
-            }
-            print(g2m)
-            print(paste(ensemble_id, wilcox.test(g2m, s)$p.value))
-            print(paste(ensemble_id, wilcox.test(g2m, g1)$p.value))
-        }
-    }
-}
 
 wilcox_fast_gse_42268 <- function() {
     "
@@ -118,10 +47,6 @@ wilcox_fast_gse_42268 <- function() {
         }
     }
 
-    # wilcox.test(#vector of all the values of the cells for each gene that are G2M, #same but for S/G1)
-    # g2m <- c()
-    # g1 <- c()
-    # s <- c()
     gsmsG2M <- rownames(col_data_xml[col_data_xml$cell_type1 == "G2/M", ,
         drop = FALSE
     ])
