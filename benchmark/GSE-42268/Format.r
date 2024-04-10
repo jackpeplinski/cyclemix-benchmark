@@ -1,5 +1,8 @@
 library(SingleCellExperiment)
 library(dplyr)
+library("org.Mm.eg.db")
+library("AnnotationDbi")
+library("org.Hs.eg.db")
 options(max.print = 20)
 
 does_file_have_phase <- function(col_data, file) {
@@ -50,8 +53,8 @@ get_feature_symbol <- function() {
 
 get_counts <- function(data) {
     f <- function(x) if (is.numeric(x)) round(x * 100) else x
-    counts <- apply(counts, c(1, 2), f)
-    return(counts)
+    data <- apply(data, c(1, 2), f)
+    return(data)
 }
 
 get_logcounts <- function(data) {
