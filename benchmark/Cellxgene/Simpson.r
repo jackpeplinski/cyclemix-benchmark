@@ -62,7 +62,13 @@ get_simpson_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_
 
     simpson_indices_graph <- ggplot(simpson_indices_by_cell_type_long, aes(x = cell_type, y = simpson, fill = source)) +
         geom_bar(stat = "identity", position = "dodge") +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        theme(
+            axis.text.x = element_text(angle = 90, hjust = 1, size = 14),
+            axis.text.y = element_text(size = 14),
+            axis.title = element_text(size = 16),
+            legend.title = element_text(size = 14),
+            legend.text = element_text(size = 12)
+        ) +
         labs(x = "Cell Type", y = "Simpson Index", fill = "Source")
     return(simpson_indices_graph)
 }
@@ -70,10 +76,10 @@ get_simpson_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_
 get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent) {
     # Convert the tables to data frames
     cyclemix_cell_type_and_phase_percent$cell_type <- rownames(cyclemix_cell_type_and_phase_percent)
-    cyclemix_cell_type_and_phase_percent$source <- "sce"
+    cyclemix_cell_type_and_phase_percent$source <- "CycleMix"
 
     seurat_cell_type_and_phase_percent$cell_type <- rownames(seurat_cell_type_and_phase_percent)
-    seurat_cell_type_and_phase_percent$source <- "seurat"
+    seurat_cell_type_and_phase_percent$source <- "Seurat"
 
     # Add missing columns to both data frames
     cyclemix_cell_type_and_phase_percent$G1 <- 0
@@ -92,8 +98,14 @@ get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cel
         theme(
             strip.placement = "outside",
             strip.background = element_rect(fill = NA, color = "white"),
-            panel.spacing = unit(.01, "cm")
-        )
+            panel.spacing = unit(.01, "cm"),
+            axis.text.x = element_text(size = 14),
+            axis.text.y = element_text(size = 14),
+            axis.title = element_text(size = 16),
+            legend.title = element_text(size = 14),
+            legend.text = element_text(size = 12)
+        ) +
+        labs(x = "Source", y = "Percent", fill = "Phase")
     return(p)
 }
 
