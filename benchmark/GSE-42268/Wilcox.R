@@ -1,74 +1,31 @@
+source("./benchmark/GSE-42268/Format.R")
 # for each gene in the GSE-42268 dataset
 # wilcox.test(#vector of all the values of the cells that are G2M, #same but for S/G1)
 
-wilcox_fast_gse_42268 <- function() {
-    "
-        row.name (ensembleID)    gsmcellname
-        ENSMUSG00000000049       0.002000
-    "
-
-    # set row names to ensemble ids
-    counts <- read.table(
-        str_interp("./benchmarkData/GSE42268/GSE42268_RAW/GSM1036480_EB5K_01.txt"),
-        header = TRUE
-    )
-    ensemble_ids <- counts$id
-    df <- data.frame(row.names = ensemble_ids)
-
-    # set columns with fpkms
-    files <- list.files(
-        path =
-            "./benchmarkData/GSE42268/GSE42268_RAW",
-        pattern = ".*.txt"
-    )
-
-    "
-        gsm          cell_type1
-        GSM1036483   G1
-        ...
-    "
-    # not all cells have phases
-    col_data_xml <- readRDS("./benchmarkData/ColDataXML.rds")
-    gsms <- rownames(col_data_xml)
-    for (file in files) {
-        gsm <- substr(file, 1, 10)
-        if (is.element(gsm, gsms)) {
-            counts_data <- read.table(
-                str_interp("./benchmarkData/GSE42268/GSE42268_RAW/${file}"),
-                header = TRUE
-            )
-            counts_data <- subset(counts_data,
-                select = -c(
-                    id,
-                    gene.symbol
-                )
-            )
-            df[, gsm] <- counts_data
-        }
-    }
-
-    gsmsG2M <- rownames(col_data_xml[col_data_xml$cell_type1 == "G2/M", ,
-        drop = FALSE
-    ])
-    gsmsG1 <- rownames(col_data_xml[col_data_xml$cell_type1 == "G1", ,
-        drop = FALSE
-    ])
-    gsmsS <- rownames(col_data_xml[col_data_xml$cell_type1 == "S", ,
-        drop = FALSE
-    ])
-
-    countsG2M <- df[gsmsG2M]
-    countsG1 <- df[gsmsG1]
-    countsS <- df[gsmsS]
+get_wilcox_fp <- function(phase1, phase2) {
+    return(paste0("./output/wilcox-", gsub("/", "", phase1), "-", gsub("/", "", phase2), ".txt"))
 }
 
-write_wilcox_output <- function(countsG2M, countsG1) {
+get_counts_by_phase <- function() {
+    sce <- get_sce()
+    phases <- c("S", "G1", "G2/M")
+    counts_by_phase <- list()
+    for (phase in phases) {
+        cell_names_by_phase <- rownames(colData(sce)[colData(sce)$cell_type1 == phase, , drop = FALSE])
+        counts_by_phase[[phase]] <- counts(sce)[, cell_names_by_phase]
+    }
+    return(counts_by_phase)
+}
+
+write_wilcox_output <- function(phase1, phase2, counts_by_phase, wilcox_fp) {
+    counts_by_phase1 <- counts_by_phase[[phase1]]
+    counts_by_phase2 <- counts_by_phase[[phase2]]
     print("Writing to file...")
-    file <- file("./output/wilcox.txt", "w")
+    file <- file(wilcox_fp, "w")
     writeLines("id p_value", file)
-    for (row in rownames(countsG2M)) {
-        x <- countsG2M[row, ]
-        y <- countsG1[row, ]
+    for (row in rownames(counts_by_phase1)) {
+        x <- counts_by_phase1[row, ]
+        y <- counts_by_phase2[row, ]
         # also display the mean and output to a file so that we can sort it by pvalue
         pval <- p.adjust(wilcox.test(as.numeric(unlist((x))), as.numeric(unlist(y)))$p.value, method = "fdr")
         line <- paste(row, pval, sep = " ")
@@ -78,16 +35,19 @@ write_wilcox_output <- function(countsG2M, countsG1) {
     print("Writing done.")
 }
 
-read_wilcox_output <- function() {
+read_wilcox_output <- function(wilcox_fp) {
     df <- read.table(
-        "./output/wilcox.txt",
+        wilcox_fp,
         header = TRUE
     )
     # how many are below 0.05
     print(paste0(nrow(df[df$p_value < 0.05, ]), " genes have a p-value below 0.05 out of ", nrow(df)))
-    print(paste0(mean(df$p_value), " is the mean p-value"))
+    # print(paste0(mean(df$p_value), " is the mean p-value"))
 }
 
-wilcox_fast_gse_42268()
-
-read_wilcox_output()
+counts_by_phase <- get_counts_by_phase()
+phase1 <- "G2/M"
+phase2 <- "S"
+wilcox_fp <- get_wilcox_fp(phase1, phase2)
+write_wilcox_output(phase1, phase2, counts_by_phase, wilcox_fp)
+read_wilcox_output(wilcox_fp)
