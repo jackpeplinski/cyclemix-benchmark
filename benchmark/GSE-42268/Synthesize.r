@@ -5,7 +5,6 @@ require("stringr")
 library("Seurat")
 library("biomaRt")
 library("org.Mm.eg.db")
-source("GSE-42268_Benchmark.R")
 options(max.print = 20)
 
 "
@@ -96,41 +95,6 @@ average_of_adjacent <- function(df) {
 
     return(new_df)
 }
-
-classify_gse_42268 <- function(gse_sce) {
-    cat("===GSE 42268 | CycleMix | MGeneSets$Cyclone===\n")
-    gse_cm_cy <<- classifyCells(gse_sce, MGeneSets$Cyclone)
-    # plotMixture(gse_cm_cy$fit[["G1"]], BIC = TRUE)
-    # plotMixture(gse_cm_cy$fit[["G2M"]], BIC = TRUE)
-    # plotMixture(gse_cm_cy$fit[["S"]], BIC = TRUE)
-    print(table(factor(gse_cm_cy$phase), gse_sce$cell_type1))
-    cat("======GSE 42268 | CycleMix | MSeuratGeneSet===\n")
-    gse_cm_se <<- classifyCells(gse_sce, MSeuratGeneSet)
-    # plotMixture(gse_cm_se$fit[["G1"]], BIC = TRUE)
-    # plotMixture(gse_cm_se$fit[["G2M"]], BIC = TRUE)
-    # plotMixture(gse_cm_se$fit[["S"]], BIC = TRUE)
-    print(table(factor(gse_cm_se$phase), gse_sce$cell_type1))
-    gse_seurat <- as.Seurat(gse_sce)
-    gse_seurat <- NormalizeData(gse_seurat)
-    gse_seurat <- FindVariableFeatures(gse_seurat, selection.method = "vst")
-    gse_seurat <- ScaleData(gse_seurat, features = rownames(gse_seurat))
-    gse_seurat <<- RunPCA(gse_seurat, features = VariableFeatures(gse_seurat), ndims.print = 6:10, nfeatures.print = 10)
-    cat("===GSE 42268 | Seurat | MGeneSets$Cyclone===\n")
-    s.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "S"]
-    g2m.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "G2M"]
-    gse_seurat_cy <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-    print(table(gse_seurat_cy[[]]$Phase, gse_seurat[[]]$cell_type1))
-    cat("======GSE 42268 | Seurat | MSeuratGeneSet===\n")
-    s.genes <- seurat_mouse_orth$mmus_s
-    g2m.genes <- seurat_mouse_orth$mmus_g2m
-    gse_seurat_se <<- CellCycleScoring(gse_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-    print(table(gse_seurat_se[[]]$Phase, gse_seurat[[]]$cell_type1))
-}
-gse_sce <<- get_sce()
-cat("***Non-synthetic***\n")
-classify_gse_42268(gse_sce)
-cat("***Synthetic***\n")
-classify_gse_42268(synthesize_gse_42268(gse_sce))
 
 validate_gse_42268 <- function() {
     sce <- get_sce()
