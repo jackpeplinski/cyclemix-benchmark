@@ -76,11 +76,9 @@ classify_emtab_2805 <- function() {
     emtab_sce <<- format_emtab_2805()
     emtab_cm_cy <<- classifyCells(emtab_sce, MGeneSets$Cyclone)
     print(table(factor(emtab_cm_cy$phase), emtab_sce$cell_type1))
+
     cat("===EMTAB 2805 | CycleMix | MSeuratGeneSet===\n")
     emtab_cm_se <<- classifyCells(emtab_sce, MSeuratGeneSet)
-    # plotMixture(emtab_cm_se$fit[["G1"]], BIC = TRUE)
-    # plotMixture(emtab_cm_se$fit[["G2M"]], BIC = TRUE)
-    # plotMixture(emtab_cm_se$fit[["S"]], BIC = TRUE)
     emtab_cm_se_table <- table(factor(emtab_cm_se$phase), emtab_sce$cell_type1)
     print(emtab_cm_se_table)
 
@@ -89,14 +87,13 @@ classify_emtab_2805 <- function() {
     emtab_seurat <- FindVariableFeatures(emtab_seurat, selection.method = "vst")
     emtab_seurat <- ScaleData(emtab_seurat, features = rownames(emtab_seurat))
     emtab_seurat <<- RunPCA(emtab_seurat, features = VariableFeatures(emtab_seurat), ndims.print = 6:10, nfeatures.print = 10)
+
     cat("===EMTAB 2805 | Seurat | MGeneSets$Cyclone===\n")
     s.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "S"]
     g2m.genes <- MGeneSets$Cyclone$Gene[MGeneSets$Cyclone$Stage == "G2M"]
     emtab_seurat_cy <<- CellCycleScoring(emtab_seurat, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     print(table(emtab_seurat_cy[[]]$Phase, emtab_seurat[[]]$orig.ident))
-    # plotMixture(emtab_cm_cy$fit[["G1"]], BIC = TRUE)
-    # plotMixture(emtab_cm_c$fit[["G2M"]], BIC = TRUE)
-    # plotMixture(emtab_cm_cy$fit[["S"]], BIC = TRUE)
+
     cat("===EMTAB 2805 | Seurat | MSeuratGeneSet===\n")
     s.genes <- seurat_mouse_orth$mmus_s
     g2m.genes <- seurat_mouse_orth$mmus_g2m
