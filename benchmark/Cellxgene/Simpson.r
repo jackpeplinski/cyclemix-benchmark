@@ -41,9 +41,9 @@ get_cyclemix_output <- function(sce_data) {
 
 get_seurat_output <- function(seurat_data) {
     s.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "S"]
-    s.genes <- convert_gene_symbols_to_ensembl_ids(as.character(s.genes))
+    s.genes <- convert_hgene_symbols_to_ensembl_ids(as.character(s.genes))
     g2m.genes <- HGeneSets$Whitfield$Gene[HGeneSets$Whitfield$Stage == "G2M"]
-    g2m.genes <- convert_gene_symbols_to_ensembl_ids(as.character(g2m.genes))
+    g2m.genes <- convert_hgene_symbols_to_ensembl_ids(as.character(g2m.genes))
     seurat_output <- CellCycleScoring(seurat_data, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
     return(seurat_output)
 }

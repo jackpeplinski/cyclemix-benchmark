@@ -1,4 +1,4 @@
-convert_gene_symbols_to_ensembl_ids <- function(gene_symbols) {
+convert_hgene_symbols_to_ensembl_ids <- function(gene_symbols) {
     ensembl_ids_df <- suppressMessages(suppressWarnings(
         AnnotationDbi::select(org.Hs.eg.db, keys = gene_symbols, columns = "ENSEMBL", keytype = "SYMBOL")
     ))
@@ -24,4 +24,14 @@ convert_ensemble_ids_to_gene_symbols <- function(ensembl_ids) {
     gene_symbols <- gene_symbols[ensembl_ids]
 
     return(gene_symbols)
+}
+
+convert_mgene_symbols_to_ensembl_ids <- function(gene_symbols) {
+    ensembl_ids_df <- suppressMessages(suppressWarnings(
+        AnnotationDbi::select(org.Mm.eg.db, keys = gene_symbols, columns = "ENSEMBL", keytype = "SYMBOL")
+    ))
+
+    ensembl_ids_df <- ensembl_ids_df[!is.na(ensembl_ids_df$ENSEMBL), ]
+
+    return(ensembl_ids_df)
 }
