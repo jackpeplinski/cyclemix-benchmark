@@ -7,13 +7,6 @@ library("biomaRt")
 library("org.Mm.eg.db")
 options(max.print = 20)
 
-"
-GSE42268 Dataset Notes:
-- Don't need to log normalize values
-- Each file is a cell
-- Round fpkm for counts
-- Put fpkm into the logcounts
-"
 MSeuratGeneSet <- readRDS("./benchmarkData/MSeuratGeneSet.RDS")
 seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
 
