@@ -135,14 +135,15 @@ wilcox_fast_gse_42268 <- function() {
     countsG2M <- df[gsmsG2M]
     countsG1 <- df[gsmsG1]
     countsS <- df[gsmsS]
+}
 
+write_wilcox_output <- function(countsG2M, countsG1) {
     print("Writing to file...")
     file <- file("./output/wilcox.txt", "w")
     writeLines("id p_value", file)
     for (row in rownames(countsG2M)) {
         x <- countsG2M[row, ]
         y <- countsG1[row, ]
-        x <- 5
         # also display the mean and output to a file so that we can sort it by pvalue
         pval <- p.adjust(wilcox.test(as.numeric(unlist((x))), as.numeric(unlist(y)))$p.value, method = "fdr")
         line <- paste(row, pval, sep = " ")
