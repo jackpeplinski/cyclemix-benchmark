@@ -126,6 +126,8 @@ get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cel
 
 save_graph <- function(file_prefix, file_path, datafile_name, p, width = 10, height = 10, units = "in") {
     datafile_name <- tools::file_path_sans_ext(basename(file_path))
+
+    print(paste0("Saving graph ", file_prefix, datafile_name, ".png"))
     ggsave(paste0(file_prefix, datafile_name, ".png"), plot = p, width = width, height = height, units = units)
 }
 
