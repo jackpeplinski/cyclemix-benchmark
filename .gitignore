@@ -4,5 +4,5 @@
 .Ruserdata
 /vignettes
 .DS_Store
-
+/output
 output.txt
