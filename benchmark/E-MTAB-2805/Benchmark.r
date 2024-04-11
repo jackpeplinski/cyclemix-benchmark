@@ -7,6 +7,9 @@ library("biomaRt")
 library("org.Mm.eg.db")
 options(max.print = 20)
 
+MSeuratGeneSet <- readRDS("./benchmarkData/MSeuratGeneSet.RDS")
+seurat_mouse_orth <- readRDS("./benchmarkData/SeuratCC_toMmus_ortho.rds")
+
 format_emtab_2805 <- function() {
     emtab_2805_file <- function(file_name) {
         # get values
