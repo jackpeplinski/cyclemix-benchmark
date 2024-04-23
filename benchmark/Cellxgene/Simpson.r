@@ -48,7 +48,7 @@ get_seurat_output <- function(seurat_data) {
     return(seurat_output)
 }
 
-get_simpson_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent) {
+get_simpson_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent, dataset_name) {
     simpson_indices_by_cell_type <- as.data.frame(cbind(CycleMix = get_simpson_index(cyclemix_cell_type_and_phase_percent), Seurat = get_simpson_index(seurat_cell_type_and_phase_percent)))
 
     # Reshape the data to long format
@@ -61,6 +61,9 @@ get_simpson_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_
         )
 
     simpson_indices_graph <- ggplot(simpson_indices_by_cell_type_long, aes(x = cell_type, y = simpson, fill = source)) +
+        ggtitle(paste(
+            "Simpson Index of ", dataset_name, " with Seurat and CycleMix"
+        )) +
         geom_bar(stat = "identity", position = "dodge") +
         theme(
             axis.text.x = element_text(angle = 90, hjust = 1, size = 14),
@@ -73,7 +76,7 @@ get_simpson_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_
     return(simpson_indices_graph)
 }
 
-get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent) {
+get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent, dataset_name) {
     # Convert the tables to data frames
     cyclemix_cell_type_and_phase_percent$cell_type <- rownames(cyclemix_cell_type_and_phase_percent)
     cyclemix_cell_type_and_phase_percent$source <- "CycleMix"
@@ -90,6 +93,9 @@ get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cel
     df_long <- tidyr::pivot_longer(df_long, cols = c(G1, G2M, S, None), names_to = "phase", values_to = "percent")
 
     p <- ggplot(df_long) +
+        ggtitle(paste(
+            "Predicted Cell Types of ", dataset_name, " with Seurat and CycleMix"
+        )) +
         geom_bar(aes(x = source, y = percent, fill = phase),
             position = "stack",
             stat = "identity"
@@ -111,11 +117,9 @@ get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cel
     return(p)
 }
 
-save_graph <- function(file_prefix, file_path, datafile_name, p, width = 10, height = 10, units = "in") {
-    datafile_name <- tools::file_path_sans_ext(basename(file_path))
-
-    print(paste0("Saving graph ", file_prefix, datafile_name, ".png"))
-    ggsave(paste0(file_prefix, datafile_name, ".png"), plot = p, width = width, height = height, units = units)
+save_graph <- function(file_prefix, file_path, file_name, p, width = 10, height = 10, units = "in") {
+    print(paste0("Saving graph ", file_prefix, file_name, ".png"))
+    ggsave(paste0(file_prefix, file_name, ".png"), plot = p, width = width, height = height, units = units)
 }
 
 process_seurat_object <- function(file_path) {
@@ -129,11 +133,12 @@ process_seurat_object <- function(file_path) {
     seurat_cell_type_and_phase_percent <- get_cell_type_and_phase_percent(cell_types, seurat_output$Phase)
 
     file_name <- tools::file_path_sans_ext(basename(file_path))
+    dataset_name <- dataset_name_map[file_name]
 
-    simpson_indices_graph <- get_simpson_graph(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent)
+    simpson_indices_graph <- get_simpson_graph(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent, dataset_name)
     save_graph("output/simpson_", file_path, file_name, simpson_indices_graph)
 
-    cell_type_graph <- get_cell_type_graph(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent)
+    cell_type_graph <- get_cell_type_graph(cyclemix_cell_type_and_phase_percent, seurat_cell_type_and_phase_percent, dataset_name)
     save_graph("output/cell_type_", file_path, file_name, cell_type_graph, width = 20, height = 10, units = "in")
 }
 
@@ -145,6 +150,14 @@ process_seurat_objects <- function(file_paths) {
 }
 
 # single_file("/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds")
+
+dataset_name_map <- list(
+    "e8ad2b36-b736-4ee9-889c-03555cd50165" = "Bondoc et al. (GSE180665)",
+    "84f3485a-e4b3-49c0-8279-65762e01e0f6" = "Wu et al. (GSE176078)",
+    "231d025d-6b31-40da-aa38-cf618d53b544" = "Zhang et al.",
+    "7a5c742b-d12c-4f4c-ad1d-e55649f75f7c" = "Darmanis et al.",
+    "fca7727d-59b3-4a5f-afa7-4d73ea824444" = "Chan et al."
+)
 
 process_seurat_objects(c(
     "./benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
