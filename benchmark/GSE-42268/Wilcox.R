@@ -12,7 +12,7 @@ get_counts_by_phase <- function() {
     counts_by_phase <- list()
     for (phase in phases) {
         cell_names_by_phase <- rownames(colData(sce)[colData(sce)$cell_type1 == phase, , drop = FALSE])
-        counts_by_phase[[phase]] <- counts(sce)[, cell_names_by_phase]
+        counts_by_phase[[phase]] <- logcounts(sce)[, cell_names_by_phase]
     }
     return(counts_by_phase)
 }
