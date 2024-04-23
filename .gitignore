@@ -2,8 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-/vignettes
 .DS_Store
 /output
-output.txt
 /benchmarkData
