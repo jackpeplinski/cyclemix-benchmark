@@ -41,8 +41,7 @@ read_wilcox_output <- function(wilcox_fp) {
         header = TRUE
     )
     # how many are below 0.05
-    print(paste0(nrow(df[df$p_value < 0.05, ]), " genes have a p-value below 0.05 out of ", nrow(df)))
-    # print(paste0(mean(df$p_value), " is the mean p-value"))
+    print(paste0(nrow(df[df$p_value < 0.05, ]), " genes have a p-value below 0.05 out of ", nrow(df), wilcox_fp))
 }
 
 counts_by_phase <- get_counts_by_phase()
