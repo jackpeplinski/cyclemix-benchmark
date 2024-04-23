@@ -44,9 +44,18 @@ read_wilcox_output <- function(wilcox_fp) {
     print(paste0(nrow(df[df$p_value < 0.05, ]), " genes have a p-value below 0.05 out of ", nrow(df), wilcox_fp))
 }
 
-counts_by_phase <- get_counts_by_phase()
-phase1 <- "G2/M"
-phase2 <- "S"
-wilcox_fp <- get_wilcox_fp(phase1, phase2)
-write_wilcox_output(phase1, phase2, counts_by_phase, wilcox_fp)
-read_wilcox_output(wilcox_fp)
+calculate_wilcox <- function() {
+    counts_by_phase <- get_counts_by_phase()
+
+    phases <- list(c("G2/M", "S"), c("G2/M", "G1"), c("S", "G1"))
+
+    for (i in 1:length(phases)) {
+        phase1 <- phases[[i]][1]
+        phase2 <- phases[[i]][2]
+        wilcox_fp <- get_wilcox_fp(phase1, phase2)
+        write_wilcox_output(phase1, phase2, counts_by_phase, wilcox_fp)
+        read_wilcox_output(wilcox_fp)
+    }
+}
+
+calculate_wilcox()
