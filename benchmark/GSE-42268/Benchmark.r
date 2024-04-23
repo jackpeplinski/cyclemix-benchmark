@@ -1,4 +1,6 @@
 source("./benchmark/GSE-42268/Format.r")
+source("./benchmark/GSE-42268/Synthesize.r")
+source("./benchmark/ConvertGenes.r")
 require("CycleMix")
 library("Seurat")
 
@@ -39,5 +41,5 @@ classify_gse_42268 <- function(gse_sce) {
 gse_sce <- get_sce()
 cat("***Non-synthetic***\n")
 classify_gse_42268(gse_sce)
-# cat("***Synthetic***\n")
-# classify_gse_42268(synthesize_gse_42268(gse_sce))
+cat("***Synthetic***\n")
+classify_gse_42268(synthesize_gse_42268(gse_sce))
