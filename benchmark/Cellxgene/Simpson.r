@@ -147,9 +147,9 @@ process_seurat_objects <- function(file_paths) {
 # single_file("/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds")
 
 process_seurat_objects(c(
-    "/Users/jackpeplinski/CycleMix/benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
-    "/Users/jackpeplinski/CycleMix/benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
+    "./benchmarkData/7a5c742b-d12c-4f4c-ad1d-e55649f75f7c.rds",
+    "./benchmarkData/84f3485a-e4b3-49c0-8279-65762e01e0f6.rds",
+    "./benchmarkData/231d025d-6b31-40da-aa38-cf618d53b544.rds",
+    "./benchmarkData/e8ad2b36-b736-4ee9-889c-03555cd50165.rds",
+    "./benchmarkData/fca7727d-59b3-4a5f-afa7-4d73ea824444.rds"
 ))
