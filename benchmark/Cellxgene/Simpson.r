@@ -60,9 +60,12 @@ get_simpson_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cell_
             values_to = "simpson"
         )
 
+    print(paste(
+        "Simpson Index of", dataset_name, "with Seurat and CycleMix"
+    ))
     simpson_indices_graph <- ggplot(simpson_indices_by_cell_type_long, aes(x = cell_type, y = simpson, fill = source)) +
         ggtitle(paste(
-            "Simpson Index of ", dataset_name, " with Seurat and CycleMix"
+            "Simpson Index of", dataset_name, "with Seurat and CycleMix"
         )) +
         geom_bar(stat = "identity", position = "dodge") +
         theme(
@@ -92,6 +95,7 @@ get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cel
 
     df_long <- tidyr::pivot_longer(df_long, cols = c(G1, G2M, S, None), names_to = "phase", values_to = "percent")
 
+    print(paste("Predicted Cell Types of", dataset_name, "with Seurat and CycleMix"))
     p <- ggplot(df_long) +
         ggtitle(paste(
             "Predicted Cell Types of ", dataset_name, " with Seurat and CycleMix"
