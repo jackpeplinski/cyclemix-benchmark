@@ -94,11 +94,13 @@ get_cell_type_graph <- function(cyclemix_cell_type_and_phase_percent, seurat_cel
             position = "stack",
             stat = "identity"
         ) +
+        scale_fill_manual(values = c("None" = "grey", "G1" = "darkblue", "S" = "#dddd26", "G2M" = "#ff4848")) +
         facet_grid(~cell_type, switch = "x") +
         theme(
             strip.placement = "outside",
             strip.background = element_rect(fill = NA, color = "white"),
             panel.spacing = unit(.01, "cm"),
+            strip.text = element_text(size = 16, angle = 90, hjust = 1),
             axis.text.x = element_text(size = 14),
             axis.text.y = element_text(size = 14),
             axis.title = element_text(size = 16),
